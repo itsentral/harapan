@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 defined('BASEPATH') or exit('No direct script access allowed');
 
 class Surat_jalan extends Admin_Controller
@@ -480,7 +480,7 @@ class Surat_jalan extends Admin_Controller
             ->from('surat_jalan sj')
             ->join('loading_delivery ld', 'sj.no_loading = ld.no_loading', 'left')
             ->join('sales_order so', 'sj.no_so = so.no_so', 'left')
-            ->join('penawaran p', 'so.id_penawaran = p.id_penawaran')
+            ->join('penawaran p', 'so.id_penawaran = p.id_penawaran', 'left')
             ->join('master_customers c', 'so.id_customer = c.id_customer', 'left')
             ->where('sj.id', $id)
             ->get()
@@ -539,6 +539,81 @@ class Surat_jalan extends Admin_Controller
         $this->template->page_icon('fa fa-check');
         $this->template->title('Confirm Delivery');
         $this->template->render('confirm', $data);
+    }
+
+    public function view_confirm($id)
+    {
+        // Header SJ — sama seperti confirm_sj, ditambah info hasil konfirmasi
+        $sj = $this->db
+            ->select('sj.*, so.nama_sales, ld.nopol, p.id_penawaran, c.name_customer')
+            ->from('surat_jalan sj')
+            ->join('loading_delivery ld', 'sj.no_loading = ld.no_loading', 'left')
+            ->join('sales_order so', 'sj.no_so = so.no_so', 'left')
+            ->join('penawaran p', 'so.id_penawaran = p.id_penawaran', 'left')
+            ->join('master_customers c', 'so.id_customer = c.id_customer', 'left')
+            ->where('sj.id', $id)
+            ->get()
+            ->row_array();
+
+        if (!$sj) {
+            show_404();
+        }
+
+        // Hanya bisa dilihat kalau sudah pernah dikonfirmasi (ada qty_terkirim)
+        if (!in_array($sj['status'], ['CONFIRM', 'RETUR', 'HILANG'])) {
+            show_404();
+        }
+
+        $sdd_sub = "
+        (
+            SELECT
+                id_so_det,
+                no_delivery,
+                SUM(COALESCE(qty_so, 0))  AS qty_so,
+                SUM(COALESCE(qty_spk, 0)) AS qty_spk
+            FROM spk_delivery_detail
+            GROUP BY id_so_det, no_delivery
+        ) sdd
+    ";
+
+        $wh_sub = "
+        (
+            SELECT
+                id_material,
+                MAX(harga_beli) AS costbook,
+                MAX(id_unit)    AS id_unit
+            FROM warehouse_stock
+            GROUP BY id_material
+        ) wh
+    ";
+
+        // Detail sudah menyimpan qty_terkirim/qty_retur/qty_hilang/qty_lebih
+        // hasil proses confirm() — tinggal ditampilkan read-only di sini.
+        $detail = $this->db
+            ->select('
+            d.*,
+            s.code,
+            COALESCE(sdd.qty_so, 0)  AS qty_so,
+            COALESCE(sdd.qty_spk, 0) AS qty_spk,
+            COALESCE(wh.costbook, 0) AS costbook
+        ')
+            ->from('surat_jalan_detail d')
+            ->join('surat_jalan sj', 'sj.id = d.id_sj')
+            ->join($sdd_sub, 'sdd.id_so_det = d.id_so_det AND sdd.no_delivery = sj.no_delivery', 'left')
+            ->join($wh_sub, 'wh.id_material = d.id_product', 'left')
+            ->join('ms_satuan s', 's.id = wh.id_unit', 'left')
+            ->where('d.id_sj', $id)
+            ->get()
+            ->result_array();
+
+        $data = [
+            'sj'     => $sj,
+            'detail' => $detail,
+        ];
+
+        $this->template->page_icon('fa fa-eye');
+        $this->template->title('Detail Konfirmasi Surat Jalan');
+        $this->template->render('view_confirm', $data);
     }
 
 

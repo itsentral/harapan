@@ -44,8 +44,9 @@ class Surat_jalan_model extends BF_Model
             // $editBtn  = "<a href='" . site_url('surat_jalan/edit/' . $row['id']) . "' class='btn btn-sm btn-warning'><i class='fa fa-edit'></i></a>";
             $printBtn = "<a href='" . site_url('surat_jalan/print_sj/' . $row['id']) . "' target='_blank' class='btn btn-sm btn-warning'><i class='fa fa-print'></i></a>";
             $confimDo = "<a href='" . site_url('surat_jalan/confirm_sj/' . $row['id']) . "' class='btn btn-sm btn-info' title='Confirm Delivery'><i class='fa fa-check'></i></a>";
+            $viewDo   = "<a href='" . site_url('surat_jalan/view_confirm/' . $row['id']) . "' class='btn btn-sm btn-default' title='Lihat Qty Terkirim'><i class='fa fa-eye'></i></a>";
 
-            $action =  ($row['status'] == 'CONFIRM') || ($row['status'] == 'RETUR') || ($row['status'] == 'HILANG') ? $printBtn : $printBtn . ' ' . $confimDo;
+            $action =  ($row['status'] == 'CONFIRM') || ($row['status'] == 'RETUR') || ($row['status'] == 'HILANG') ? $printBtn . ' ' . $viewDo : $printBtn . ' ' . $confimDo;
 
             if ($row['status'] == 'ON DELIVER') {
                 $status = " <span class='badge bg-yellow'>ON DELIVERY</span>";
