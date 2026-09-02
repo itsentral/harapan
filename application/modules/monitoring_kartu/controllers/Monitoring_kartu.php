@@ -108,18 +108,18 @@ class Monitoring_kartu extends Admin_Controller
 
         // Title
         $sheet->setCellValue('A1', 'MONITORING KARTU ' . $label);
-        $sheet->mergeCells('A1:H1');
+        $sheet->mergeCells('A1:I1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
         $sheet->setCellValue('A2', 'Periode: ' . date('d F Y', strtotime($filter['tgl_awal'])) . ' s/d ' . date('d F Y', strtotime($filter['tgl_akhir'])));
-        $sheet->mergeCells('A2:H2');
+        $sheet->mergeCells('A2:I2');
         $sheet->getStyle('A2')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
         // Header kolom
-        $headers = ['Tanggal', 'Nomor', 'No Reff', 'Jenis Trans',
+        $headers = ['Tanggal', 'Nomor', 'No Perkiraan', 'No Reff', 'Jenis Trans',
                     ($jenis === 'hutang' ? 'Supplier' : 'Customer'), 'Keterangan', 'Debet', 'Kredit'];
-        $cols    = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+        $cols    = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
         foreach ($headers as $i => $h) {
             $sheet->setCellValue($cols[$i] . '4', $h);
@@ -131,25 +131,26 @@ class Monitoring_kartu extends Admin_Controller
         foreach ($data_report as $d) {
             $sheet->setCellValue('A' . $row, !empty($d['tanggal']) ? date('d/m/Y', strtotime($d['tanggal'])) : '');
             $sheet->setCellValueExplicit('B' . $row, $d['nomor'], PHPExcel_Cell_DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit('C' . $row, $d['no_reff'], PHPExcel_Cell_DataType::TYPE_STRING);
-            $sheet->setCellValue('D' . $row, $d['jenis_trans']);
-            $sheet->setCellValue('E' . $row, $d['nama']);
-            $sheet->setCellValue('F' . $row, $d['keterangan']);
-            $sheet->setCellValue('G' . $row, (float)$d['debet']);
-            $sheet->setCellValue('H' . $row, (float)$d['kredit']);
+            $sheet->setCellValueExplicit('C' . $row, $d['no_perkiraan'], PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit('D' . $row, $d['no_reff'], PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValue('E' . $row, $d['jenis_trans']);
+            $sheet->setCellValue('F' . $row, $d['nama']);
+            $sheet->setCellValue('G' . $row, $d['keterangan']);
+            $sheet->setCellValue('H' . $row, (float)$d['debet']);
+            $sheet->setCellValue('I' . $row, (float)$d['kredit']);
 
-            $sheet->getStyle('G' . $row . ':H' . $row)->getNumberFormat()->setFormatCode('#,##0');
-            $sheet->getStyle('A' . $row . ':H' . $row)->applyFromArray($style_data);
+            $sheet->getStyle('H' . $row . ':I' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('A' . $row . ':I' . $row)->applyFromArray($style_data);
             $row++;
         }
 
         // Total row
         $sheet->setCellValue('A' . $row, 'TOTAL');
-        $sheet->mergeCells('A' . $row . ':F' . $row);
-        $sheet->setCellValue('G' . $row, (float)$totals['debet']);
-        $sheet->setCellValue('H' . $row, (float)$totals['kredit']);
-        $sheet->getStyle('G' . $row . ':H' . $row)->getNumberFormat()->setFormatCode('#,##0');
-        $sheet->getStyle('A' . $row . ':H' . $row)->applyFromArray($style_total);
+        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $sheet->setCellValue('H' . $row, (float)$totals['debet']);
+        $sheet->setCellValue('I' . $row, (float)$totals['kredit']);
+        $sheet->getStyle('H' . $row . ':I' . $row)->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('A' . $row . ':I' . $row)->applyFromArray($style_total);
         $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
 
         $filename = 'Monitoring_Kartu_' . ucfirst($jenis) . '_' . $filter['tgl_awal'] . '_sd_' . $filter['tgl_akhir'] . '.xlsx';

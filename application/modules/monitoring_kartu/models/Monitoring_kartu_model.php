@@ -47,12 +47,13 @@ class Monitoring_kartu_model extends BF_Model
         $columns_order = [
             0 => 'tanggal',
             1 => 'nomor',
-            2 => 'no_reff',
-            3 => 'jenis_trans',
-            4 => $nama_col,
-            5 => 'keterangan',
-            6 => 'debet',
-            7 => 'kredit',
+            2 => 'no_perkiraan',
+            3 => 'no_reff',
+            4 => 'jenis_trans',
+            5 => $nama_col,
+            6 => 'keterangan',
+            7 => 'debet',
+            8 => 'kredit',
         ];
 
         // ---- Total data (tanpa search, dengan filter tanggal) ----
@@ -67,7 +68,7 @@ class Monitoring_kartu_model extends BF_Model
         $totalFiltered = $this->db->count_all_results();
 
         // ---- Data ----
-        $this->db->select('tanggal, nomor, no_reff, jenis_trans, keterangan, debet, kredit, nocust, nama_supplier');
+        $this->db->select('tanggal, nomor, no_perkiraan, no_reff, jenis_trans, keterangan, debet, kredit, nocust, nama_supplier');
         $this->db->from($table);
         $this->_apply_date($tgl_awal, $tgl_akhir);
         $this->_apply_search($jenis, $search);
@@ -97,6 +98,7 @@ class Monitoring_kartu_model extends BF_Model
             $nestedData[] = "<div class='text-center'>{$urut}</div>";
             $nestedData[] = "<div class='text-center'>{$tgl}</div>";
             $nestedData[] = htmlspecialchars($row['nomor']);
+            $nestedData[] = "<div class='text-center'>" . htmlspecialchars($row['no_perkiraan']) . "</div>";
             $nestedData[] = htmlspecialchars($row['no_reff']);
             $nestedData[] = htmlspecialchars($row['jenis_trans']);
             $nestedData[] = htmlspecialchars($nama);
@@ -154,7 +156,7 @@ class Monitoring_kartu_model extends BF_Model
     {
         $table = ($jenis === 'hutang') ? 'tr_kartu_hutang' : 'tr_kartu_piutang';
 
-        $this->db->select('tanggal, nomor, no_reff, jenis_trans, keterangan, debet, kredit, nocust, nama_supplier');
+        $this->db->select('tanggal, nomor, no_perkiraan, no_reff, jenis_trans, keterangan, debet, kredit, nocust, nama_supplier');
         $this->db->from($table);
         $this->_apply_date($tgl_awal, $tgl_akhir);
         $this->_apply_search($jenis, $search);
@@ -165,9 +167,10 @@ class Monitoring_kartu_model extends BF_Model
         $rows = [];
         foreach (($q ? $q->result_array() : []) as $r) {
             $rows[] = [
-                'tanggal'     => $r['tanggal'],
-                'nomor'       => $r['nomor'],
-                'no_reff'     => $r['no_reff'],
+                'tanggal'      => $r['tanggal'],
+                'nomor'        => $r['nomor'],
+                'no_perkiraan' => $r['no_perkiraan'],
+                'no_reff'      => $r['no_reff'],
                 'jenis_trans' => $r['jenis_trans'],
                 'keterangan'  => $r['keterangan'],
                 'nama'        => ($jenis === 'hutang') ? trim($r['nama_supplier'] . '') : trim($r['nocust'] . ''),
@@ -195,6 +198,7 @@ class Monitoring_kartu_model extends BF_Model
         }
         $this->db->group_start();
         $this->db->like('nomor', $search);
+        $this->db->or_like('no_perkiraan', $search);
         $this->db->or_like('no_reff', $search);
         $this->db->or_like('jenis_trans', $search);
         $this->db->or_like('keterangan', $search);

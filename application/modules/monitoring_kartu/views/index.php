@@ -44,30 +44,6 @@
             </div>
         </div>
 
-        <!-- Ringkasan -->
-        <div class="row" id="summary-area" style="display:none;">
-            <div class="col-md-4 col-md-offset-4">
-            </div>
-            <div class="col-md-4">
-                <div class="info-box bg-green">
-                    <span class="info-box-icon"><i class="fa fa-arrow-down"></i></span>
-                    <div class="info-box-content">
-                        <span class="info-box-text">Total Debet</span>
-                        <span class="info-box-number" id="sum-debet">0</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="info-box bg-yellow">
-                    <span class="info-box-icon"><i class="fa fa-arrow-up"></i></span>
-                    <div class="info-box-content">
-                        <span class="info-box-text">Total Kredit</span>
-                        <span class="info-box-number" id="sum-kredit">0</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Tabel Hasil -->
         <div class="table-responsive" style="margin-top:10px;">
             <table class="table table-bordered table-striped" id="tbl-kartu" style="width:100%;">
@@ -76,6 +52,7 @@
                         <th width="30">No</th>
                         <th>Tanggal</th>
                         <th>Nomor</th>
+                        <th>No Perkiraan</th>
                         <th>No Reff</th>
                         <th>Jenis Trans</th>
                         <th id="th-nama">Supplier</th>
@@ -87,7 +64,7 @@
                 <tbody></tbody>
                 <tfoot>
                     <tr class="active">
-                        <th colspan="7" class="text-right">Total</th>
+                        <th colspan="8" class="text-right">Total</th>
                         <th class="text-right" id="tfoot-debet"></th>
                         <th class="text-right" id="tfoot-kredit"></th>
                     </tr>
@@ -170,7 +147,7 @@ $(document).ready(function () {
             aLengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
             columnDefs: [
                 { targets: 0, orderable: false, width: '30px' },
-                { targets: [7, 8], className: 'text-right' }
+                { targets: [8, 9], className: 'text-right' }
             ],
             ajax: {
                 url: base_url + active_controller + '/data',
@@ -182,11 +159,8 @@ $(document).ready(function () {
                     d.tgl_akhir = cf.tgl_akhir;
                 },
                 dataSrc: function (json) {
-                    $('#sum-debet').text(formatNumber(json.total_debet));
-                    $('#sum-kredit').text(formatNumber(json.total_kredit));
                     $('#tfoot-debet').text(formatNumber(json.total_debet));
                     $('#tfoot-kredit').text(formatNumber(json.total_kredit));
-                    $('#summary-area').show();
                     return json.data;
                 },
                 error: function () {
