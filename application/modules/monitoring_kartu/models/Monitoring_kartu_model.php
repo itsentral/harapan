@@ -137,7 +137,7 @@ class Monitoring_kartu_model extends BF_Model
      * @param  int    $id
      * @return array  ['status' => bool, 'message' => string]
      */
-    public function soft_delete($jenis, $id)
+    public function arsip_hapus($jenis, $id)
     {
         $jenis = strtolower(trim($jenis));
         if (!in_array($jenis, ['hutang', 'piutang'], true)) {

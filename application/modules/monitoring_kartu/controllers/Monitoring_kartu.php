@@ -53,7 +53,7 @@ class Monitoring_kartu extends Admin_Controller
         $jenis = strtolower(trim($this->input->post('jenis')));
         $id    = (int)$this->input->post('id');
 
-        $result = $this->Monitoring_kartu_model->soft_delete($jenis, $id);
+        $result = $this->Monitoring_kartu_model->arsip_hapus($jenis, $id);
 
         echo json_encode($result);
     }
