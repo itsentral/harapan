@@ -59,6 +59,7 @@
                         <th>Keterangan</th>
                         <th>Debet</th>
                         <th>Kredit</th>
+                        <th width="60">Action</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -67,6 +68,7 @@
                         <th colspan="8" class="text-right">Total</th>
                         <th class="text-right" id="tfoot-debet"></th>
                         <th class="text-right" id="tfoot-kredit"></th>
+                        <th></th>
                     </tr>
                 </tfoot>
             </table>
@@ -147,7 +149,8 @@ $(document).ready(function () {
             aLengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
             columnDefs: [
                 { targets: 0, orderable: false, width: '30px' },
-                { targets: [8, 9], className: 'text-right' }
+                { targets: [8, 9], className: 'text-right' },
+                { targets: 10, orderable: false, searchable: false, className: 'text-center', width: '60px' }
             ],
             ajax: {
                 url: base_url + active_controller + '/data',
@@ -188,6 +191,43 @@ $(document).ready(function () {
 
     $('#btn-excel').on('click', function () {
         window.location.href = base_url + active_controller + '/export_excel?' + buildQuery();
+    });
+
+    // Hapus baris (dipindahkan ke tabel _deleted)
+    $('#tbl-kartu').on('click', '.btn-hapus', function () {
+        var id    = $(this).data('id');
+        var jenis = $('#jenis').val();
+
+        swal({
+            title: 'Hapus data ini?',
+            text: 'Data akan dipindahkan ke tabel arsip (' +
+                  (jenis === 'piutang' ? 'tr_kartu_piutang_deleted' : 'tr_kartu_hutang_deleted') + ').',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dd4b39',
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal'
+        }, function (isConfirm) {
+            if (!isConfirm) return;
+
+            $.ajax({
+                url: base_url + active_controller + '/delete',
+                type: 'POST',
+                dataType: 'json',
+                data: { id: id, jenis: jenis },
+                success: function (res) {
+                    if (res.status) {
+                        swal({ title: 'Berhasil', text: res.message, type: 'success' });
+                        if (dtKartu) dtKartu.ajax.reload(null, false);
+                    } else {
+                        swal({ title: 'Gagal', text: res.message, type: 'error' });
+                    }
+                },
+                error: function () {
+                    swal({ title: 'Error', text: 'Koneksi gagal, coba lagi.', type: 'error' });
+                }
+            });
+        });
     });
 });
 </script>

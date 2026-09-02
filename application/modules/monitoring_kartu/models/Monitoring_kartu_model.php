@@ -68,7 +68,7 @@ class Monitoring_kartu_model extends BF_Model
         $totalFiltered = $this->db->count_all_results();
 
         // ---- Data ----
-        $this->db->select('tanggal, nomor, no_perkiraan, no_reff, jenis_trans, keterangan, debet, kredit, nocust, nama_supplier');
+        $this->db->select('id, tanggal, nomor, no_perkiraan, no_reff, jenis_trans, keterangan, debet, kredit, nocust, nama_supplier');
         $this->db->from($table);
         $this->_apply_date($tgl_awal, $tgl_akhir);
         $this->_apply_search($jenis, $search);
@@ -106,6 +106,10 @@ class Monitoring_kartu_model extends BF_Model
             $nestedData[] = "<div class='text-right'>" . number_format((float)$row['debet'], 0, ',', '.') . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format((float)$row['kredit'], 0, ',', '.') . "</div>";
 
+            $btn_hapus = "<button type='button' class='btn btn-xs btn-danger btn-hapus' "
+                . "data-id='" . (int)$row['id'] . "' title='Hapus'><i class='fa fa-trash'></i></button>";
+            $nestedData[] = "<div class='text-center'>{$btn_hapus}</div>";
+
             $data[] = $nestedData;
             $urut++;
         }
@@ -123,6 +127,75 @@ class Monitoring_kartu_model extends BF_Model
         ];
 
         echo json_encode($json_data);
+    }
+
+    /**
+     * Pindahkan satu baris kartu ke tabel _deleted lalu hapus dari tabel asli.
+     * Dijalankan dalam transaksi agar konsisten.
+     *
+     * @param  string $jenis  'hutang' | 'piutang'
+     * @param  int    $id
+     * @return array  ['status' => bool, 'message' => string]
+     */
+    public function soft_delete($jenis, $id)
+    {
+        $jenis = strtolower(trim($jenis));
+        if (!in_array($jenis, ['hutang', 'piutang'], true)) {
+            return ['status' => false, 'message' => 'Jenis kartu tidak valid.'];
+        }
+
+        $id = (int)$id;
+        if ($id <= 0) {
+            return ['status' => false, 'message' => 'ID tidak valid.'];
+        }
+
+        $table         = ($jenis === 'hutang') ? 'tr_kartu_hutang' : 'tr_kartu_piutang';
+        $table_deleted = $table . '_deleted';
+
+        // Ambil data yang akan dihapus
+        $row = $this->db->where('id', $id)->get($table)->row_array();
+        if (empty($row)) {
+            return ['status' => false, 'message' => 'Data tidak ditemukan atau sudah dihapus.'];
+        }
+
+        // Metadata penghapusan (kolom opsional; hanya diisi bila ada di tabel _deleted)
+        $meta = [
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'deleted_by' => $this->_current_user(),
+        ];
+        foreach ($meta as $col => $val) {
+            if ($this->db->field_exists($col, $table_deleted)) {
+                $row[$col] = $val;
+            }
+        }
+
+        $this->db->trans_start();
+
+        $this->db->insert($table_deleted, $row);
+        $this->db->where('id', $id)->delete($table);
+
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === false) {
+            return ['status' => false, 'message' => 'Gagal memindahkan data ke tabel deleted. Perubahan dibatalkan.'];
+        }
+
+        return ['status' => true, 'message' => 'Data berhasil dihapus dan dipindahkan ke arsip.'];
+    }
+
+    private function _current_user()
+    {
+        $ci = get_instance();
+        if (isset($ci->auth) && method_exists($ci->auth, 'userdata')) {
+            $ud = $ci->auth->userdata();
+            if (is_object($ud) && isset($ud->username)) {
+                return $ud->username;
+            }
+            if (is_array($ud) && isset($ud['username'])) {
+                return $ud['username'];
+            }
+        }
+        return null;
     }
 
     /**

@@ -10,7 +10,8 @@ defined('BASEPATH') or exit('No direct script access allowed');
  */
 class Monitoring_kartu extends Admin_Controller
 {
-    protected $viewPermission = 'Monitoring_Kartu.View';
+    protected $viewPermission   = 'Monitoring_Kartu.View';
+    protected $deletePermission = 'Monitoring_Kartu.Delete';
 
     public function __construct()
     {
@@ -35,6 +36,26 @@ class Monitoring_kartu extends Admin_Controller
     {
         $this->auth->restrict($this->viewPermission);
         $this->Monitoring_kartu_model->data_serverside();
+    }
+
+    /**
+     * AJAX: hapus satu baris kartu (dipindahkan ke tabel _deleted).
+     * POST: jenis (hutang|piutang), id
+     */
+    public function delete()
+    {
+        $this->auth->restrict($this->deletePermission);
+
+        if (!$this->input->is_ajax_request()) {
+            show_error('Akses tidak diizinkan.');
+        }
+
+        $jenis = strtolower(trim($this->input->post('jenis')));
+        $id    = (int)$this->input->post('id');
+
+        $result = $this->Monitoring_kartu_model->soft_delete($jenis, $id);
+
+        echo json_encode($result);
     }
 
     /**
