@@ -60,8 +60,9 @@ class Report_debt extends Admin_Controller
      * Invoice yang belum lunas akan tetap muncul (carry-forward) di bulan-bulan berikutnya
      * dengan nilai yang sama, sampai ada pembayaran yang menguranginya.
      *
-     * Aging (late 15-30 hari / bad >=31 hari) juga dihitung relatif terhadap cutoff bulan
-     * tersebut (bukan tanggal hari ini), supaya konsisten dengan posisi "per akhir bulan".
+     * Aging (late 15-30 hari / bad >=31 hari) dihitung dari selisih JATUH TEMPO (jatuh_tempo)
+     * terhadap HARI INI (tanggal aktual saat laporan dibuka/di-export), bukan cutoff akhir bulan.
+     * Jadi kategori late/bad debt bersifat "live" mengikuti hari ini.
      *
      * @param  int|string $tahun
      * @return array  [id_sales => [bulan_no => ['id_sales'=>, 'total_piutang'=>, 'aging_15_30'=>, 'aging_30_up'=>]]]
@@ -71,6 +72,7 @@ class Report_debt extends Admin_Controller
         $rekap = [];
         $bulan_sekarang = (int) date('n');
         $tahun_sekarang = (int) date('Y');
+        $today = date('Y-m-d');
 
         for ($m = 1; $m <= 12; $m++) {
             // Jangan hitung bulan yang belum terjadi (masa depan relatif hari ini).
@@ -83,13 +85,15 @@ class Report_debt extends Admin_Controller
             // Sisa piutang per invoice per cutoff = grand_total - total bayar - total CN,
             // yang tanggal pembayarannya <= cutoff (akhir bulan). Belum dikurangi kalau
             // pembayarannya baru terjadi setelah cutoff, sehingga nilainya carry-forward.
+            //
+            // Aging late/bad debt = selisih jatuh_tempo terhadap hari ini.
             $this->db->select("
                 c.id as id_sales,
                 SUM(GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0), 0)) as total_piutang,
-                SUM(CASE WHEN DATEDIFF('$cutoff_date', a.jatuh_tempo) BETWEEN 15 AND 30
+                SUM(CASE WHEN DATEDIFF('$today', a.jatuh_tempo) BETWEEN 15 AND 30
                          THEN GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0), 0)
                          ELSE 0 END) as aging_15_30,
-                SUM(CASE WHEN DATEDIFF('$cutoff_date', a.jatuh_tempo) >= 31
+                SUM(CASE WHEN DATEDIFF('$today', a.jatuh_tempo) >= 31
                          THEN GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0), 0)
                          ELSE 0 END) as aging_30_up
             ", false);
@@ -159,6 +163,8 @@ class Report_debt extends Admin_Controller
         // dan masih ada sisa piutang per cutoff itu akan ikut muncul (carry-forward),
         // terlepas dari kapan jatuh temponya.
         $cutoff_date = date('Y-m-t', strtotime("$tahun-$bulan-01"));
+        // Hari lewat / kategori late-bad debt dihitung dari jatuh_tempo ke hari ini.
+        $today = date('Y-m-d');
 
         $this->db->select("
             a.id_invoice as no_invoice,
@@ -168,7 +174,7 @@ class Report_debt extends Admin_Controller
             a.grand_total as total_invoice,
             COALESCE(bayar.total_bayar, 0) as total_bayar,
             GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0), 0) as piutang,
-            DATEDIFF('$cutoff_date', a.jatuh_tempo) as hari_lewat
+            DATEDIFF('$today', a.jatuh_tempo) as hari_lewat
         ", false);
         $this->db->from('tr_invoice_sales a');
         $this->db->join('master_customers b', 'a.id_customer = b.id_customer', 'left');
@@ -187,13 +193,13 @@ class Report_debt extends Admin_Controller
         $this->db->having('piutang >', 0);
 
         if ($tipe == 'late') {
-            // Aging 15-30 hari (relatif terhadap cutoff akhir bulan)
-            $this->db->having("DATEDIFF('$cutoff_date', a.jatuh_tempo) BETWEEN 15 AND 30", null, false);
+            // Aging 15-30 hari (relatif terhadap hari ini, dari jatuh_tempo)
+            $this->db->having("DATEDIFF('$today', a.jatuh_tempo) BETWEEN 15 AND 30", null, false);
             $judul = 'Detail Piutang Late Debt (15-30 Hari)';
             $filename = 'Detail_Late_Debt_' . str_replace(' ', '_', $nama_sales) . '_' . $nama_bulan . '_' . $tahun . '.xls';
         } elseif ($tipe == 'bad') {
-            // Aging >=31 hari (relatif terhadap cutoff akhir bulan)
-            $this->db->having("DATEDIFF('$cutoff_date', a.jatuh_tempo) >= 31", null, false);
+            // Aging >=31 hari (relatif terhadap hari ini, dari jatuh_tempo)
+            $this->db->having("DATEDIFF('$today', a.jatuh_tempo) >= 31", null, false);
             $judul = 'Detail Piutang Bad Debt (>= 31 Hari)';
             $filename = 'Detail_Bad_Debt_' . str_replace(' ', '_', $nama_sales) . '_' . $nama_bulan . '_' . $tahun . '.xls';
         } else {
