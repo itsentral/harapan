@@ -335,43 +335,58 @@ class Surat_jalan extends Admin_Controller
                 $old_booking = (float)$stok['qty_booking'];
                 $old_free    = (float)$stok['qty_free'];
 
-                // Guard: stok riil tidak cukup. Ini adalah root cause bug di kasus
-                // SJ/G/2608/0072 — WHERE qty_stock >= $qty di bawah gagal match,
-                // UPDATE warehouse_stock diam-diam ber-affected_rows 0, tapi tanpa
-                // cek ini proses tetap lanjut dan kartu_stok tetap mencatat qty_akhir
-                // yang seolah-olah berhasil dikurangi (bahkan bisa jadi minus).
-                if ($old_stock < $qty) {
-                    $this->db->trans_rollback();
-                    echo json_encode(['status' => 0, 'pesan' => "Stok tidak cukup untuk produk {$value['product']} ({$id_product}). Stok tersedia: {$old_stock}, dibutuhkan: {$qty}."]);
-                    return;
-                }
+                // Kalau qty = 0, tidak ada barang yang keluar untuk baris ini —
+                // warehouse_stock tidak perlu (dan tidak boleh) disentuh sama sekali.
+                // Sebelumnya UPDATE tetap dijalankan dengan nilai yang identik dengan
+                // nilai lama, sehingga MySQL melaporkan affected_rows = 0 (karena tidak
+                // ada baris yang benar-benar berubah nilainya) dan guard di bawah salah
+                // mengartikannya sebagai kegagalan (lihat kasus "Save Failed" pada qty=0).
+                if ($qty > 0) {
+                    // Guard: stok riil tidak cukup. Ini adalah root cause bug di kasus
+                    // SJ/G/2608/0072 — WHERE qty_stock >= $qty di bawah gagal match,
+                    // UPDATE warehouse_stock diam-diam ber-affected_rows 0, tapi tanpa
+                    // cek ini proses tetap lanjut dan kartu_stok tetap mencatat qty_akhir
+                    // yang seolah-olah berhasil dikurangi (bahkan bisa jadi minus).
+                    if ($old_stock < $qty) {
+                        $this->db->trans_rollback();
+                        echo json_encode(['status' => 0, 'pesan' => "Stok tidak cukup untuk produk {$value['product']} ({$id_product}). Stok tersedia: {$old_stock}, dibutuhkan: {$qty}."]);
+                        return;
+                    }
 
-                $new_stock   = $old_stock - $qty;
-                $new_booking = max($old_booking - $qty, 0);
-                $new_free    = $new_stock - $new_booking;
+                    $new_stock   = $old_stock - $qty;
+                    $new_booking = max($old_booking - $qty, 0);
+                    $new_free    = $new_stock - $new_booking;
 
-                $this->db->set('qty_stock',   $new_stock,   FALSE);
-                $this->db->set('qty_booking', $new_booking, FALSE);
-                $this->db->set('qty_free',    $new_free,    FALSE);
-                $this->db->where('id_material', $id_product);
-                $this->db->where('id_gudang', 1);
-                $this->db->where('kd_gudang', 'PUS');
-                $this->db->where('qty_stock >=', $qty); // guard anti-minus
-                $this->db->update('warehouse_stock');
+                    $this->db->set('qty_stock',   $new_stock,   FALSE);
+                    $this->db->set('qty_booking', $new_booking, FALSE);
+                    $this->db->set('qty_free',    $new_free,    FALSE);
+                    $this->db->where('id_material', $id_product);
+                    $this->db->where('id_gudang', 1);
+                    $this->db->where('kd_gudang', 'PUS');
+                    $this->db->where('qty_stock >=', $qty); // guard anti-minus
+                    $this->db->update('warehouse_stock');
 
-                // Guard tambahan: pastikan UPDATE benar-benar mengubah baris
-                // (jaga-jaga race condition di luar lock FOR UPDATE di atas).
-                if ($this->db->affected_rows() == 0) {
-                    $this->db->trans_rollback();
-                    echo json_encode(['status' => 0, 'pesan' => "Gagal memperbarui stok untuk produk {$value['product']} ({$id_product}). Kemungkinan stok berubah bersamaan proses lain, silakan coba lagi."]);
-                    return;
-                }
+                    // Guard tambahan: pastikan UPDATE benar-benar mengubah baris
+                    // (jaga-jaga race condition di luar lock FOR UPDATE di atas).
+                    if ($this->db->affected_rows() == 0) {
+                        $this->db->trans_rollback();
+                        echo json_encode(['status' => 0, 'pesan' => "Gagal memperbarui stok untuk produk {$value['product']} ({$id_product}). Kemungkinan stok berubah bersamaan proses lain, silakan coba lagi."]);
+                        return;
+                    }
 
-                // Update map lokal agar kartu stok berikutnya akurat
-                if (isset($stockMap[$id_product])) {
-                    $stockMap[$id_product]['qty_stock']   = $new_stock;
-                    $stockMap[$id_product]['qty_booking'] = $new_booking;
-                    $stockMap[$id_product]['qty_free']    = $new_free;
+                    // Update map lokal agar kartu stok berikutnya akurat
+                    if (isset($stockMap[$id_product])) {
+                        $stockMap[$id_product]['qty_stock']   = $new_stock;
+                        $stockMap[$id_product]['qty_booking'] = $new_booking;
+                        $stockMap[$id_product]['qty_free']    = $new_free;
+                    }
+                } else {
+                    // qty = 0: tidak ada perubahan stok, kartu stok tetap dicatat
+                    // dengan qty_transaksi = 0 (konsisten dengan baris non-stok lain
+                    // seperti "Sales Order" yang juga bisa qty_transaksi = 0).
+                    $new_stock   = $old_stock;
+                    $new_booking = $old_booking;
+                    $new_free    = $old_free;
                 }
 
                 // Kartu stok: barang keluar gudang saat SJ dibuat

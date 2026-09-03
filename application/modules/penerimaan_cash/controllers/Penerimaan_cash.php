@@ -222,7 +222,15 @@ class Penerimaan_cash extends Admin_Controller
 		$detail         = $post['detail'];
 
 		$total_invoice  = str_replace(",", "", $post['total_invoice']);
-		$total_terima   = str_replace(",", "", $post['total_terima']);
+		$total_terima   = floatval(str_replace(",", "", $post['total_terima']));
+
+		if ($total_terima <= 0) {
+			echo json_encode([
+				'status' => 0,
+				'message' => 'Total penerimaan tidak boleh 0. Silahkan isi nominal pembayaran.'
+			]);
+			return;
+		}
 
 		$id_invoices    = array_column($detail, 'id_invoice');
 		$invoice_string = implode(', ', $id_invoices);
@@ -771,7 +779,7 @@ class Penerimaan_cash extends Admin_Controller
 		$details = $this->db->get_where('tr_invoice_payment_detail', ['kd_pembayaran' => $kd_pembayaran])->result_array();
 
 		// Helper: ambil list kolom tabel target, filter data sesuai kolom yang ada
-		$filter_columns = function($data, $table) {
+		$filter_columns = function ($data, $table) {
 			$fields = $this->db->list_fields($table);
 			$filtered = [];
 			foreach ($data as $key => $val) {

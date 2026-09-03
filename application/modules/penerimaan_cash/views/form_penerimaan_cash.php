@@ -545,6 +545,12 @@
         $(document).on('submit', '#data-form', function(e) {
             e.preventDefault();
 
+            const totalTerima = parseFloat(($('#totalTerima').val() || '0').replace(/,/g, '')) || 0;
+            if (totalTerima <= 0) {
+                swal('Peringatan', 'Total penerimaan tidak boleh 0. Silahkan isi nominal pembayaran.', 'warning');
+                return;
+            }
+
             const form = document.getElementById('data-form');
             const formData = new FormData(form);
 
