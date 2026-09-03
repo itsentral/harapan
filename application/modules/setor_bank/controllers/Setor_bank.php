@@ -338,12 +338,29 @@ class Setor_bank extends Admin_Controller
 
             // =========================
             // 3. ROLLBACK STATUS SETOR DI TR_INVOICE_PAYMENT
+            //    (hanya untuk kd_pembayaran yang TIDAK dipakai di setoran lain yang masih aktif)
             // =========================
             if (!empty($kd_pembayaran_list)) {
-                $this->db->where_in('kd_pembayaran', $kd_pembayaran_list)
-                    ->update('tr_invoice_payment', ['status_setor' => 0]);
-                $err = $this->db->error();
-                if ($err['code']) throw new Exception("Step 3 - Update invoice_payment: " . $err['message']);
+                foreach ($kd_pembayaran_list as $kd) {
+
+                    // masih dipakai di setoran bank lain (selain yang sedang dibatalkan)?
+                    $masih_di_bank_lain = $this->db
+                        ->where('kd_pembayaran', $kd)
+                        ->where('id_setor_bank !=', $id)
+                        ->count_all_results('tr_setor_bank_detail');
+
+                    // masih dipakai di setoran kasir yang masih aktif?
+                    $masih_di_kasir = $this->db
+                        ->where('kd_pembayaran', $kd)
+                        ->count_all_results('tr_setor_kasir_detail');
+
+                    if ($masih_di_bank_lain == 0 && $masih_di_kasir == 0) {
+                        $this->db->where('kd_pembayaran', $kd)
+                            ->update('tr_invoice_payment', ['status_setor' => 0]);
+                        $err = $this->db->error();
+                        if ($err['code']) throw new Exception("Step 3 - Update invoice_payment: " . $err['message']);
+                    }
+                }
             }
 
             // =========================
@@ -417,7 +434,7 @@ class Setor_bank extends Admin_Controller
             } else {
                 // Kalau jarh tidak ditemukan, skip saja
             }
-            
+
 
             // =========================
             // 5. HAPUS KARTU PIUTANG SALES
@@ -487,7 +504,8 @@ class Setor_bank extends Admin_Controller
             ->where('a.tipe_bayar', 'CASH')
             ->where('a.status_setor', 0)
             ->where('a.created_by', $user_id)
-            ->where('a.kd_pembayaran NOT IN (SELECT kd_pembayaran FROM tr_setor_bank_detail)', NULL, FALSE);
+            ->where('a.kd_pembayaran NOT IN (SELECT kd_pembayaran FROM tr_setor_bank_detail)', NULL, FALSE)
+            ->where('a.kd_pembayaran NOT IN (SELECT kd_pembayaran FROM tr_setor_kasir_detail)', NULL, FALSE);
 
         $data = $this->db
             ->order_by('a.created_on', 'DESC')

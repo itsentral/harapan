@@ -1461,6 +1461,14 @@ class Request_payment extends Admin_Controller
 		$no_transaksi 	= $this->input->post("no_transaksi");
 		$tgl_jurnal  	= date('Y-m-d');
 
+		// COA yang dianggap Hutang Dagang -> harus ikut tercatat di tr_kartu_hutang
+		$coa_hutang_dagang = array('2101-01-01', '2101-01-02', '2101-01-04');
+
+		// Ambil data supplier dari header pembayaran (tr_payment_paid) berdasarkan no_transaksi
+		$header_payment = $this->db->get_where('tr_payment_paid', array('id' => $no_transaksi))->row();
+		$id_supplier    = isset($header_payment->supplier) ? $header_payment->supplier : null;
+		$nama_supplier  = isset($header_payment->nm_supplier) ? $header_payment->nm_supplier : null;
+
 		$this->db->trans_begin();
 		for ($i = 0; $i < count($id); $i++) {
 			$dataheader =  array(
@@ -1488,6 +1496,26 @@ class Request_payment extends Admin_Controller
 			);
 
 			$this->db->insert(DBACC . '.jurnal', $datadetail);
+
+			// Jika baris jurnal ini menggunakan COA Hutang Dagang, catat ke tr_kartu_hutang.
+			// Pada pembayaran, hutang berkurang => nilai masuk sebagai debet.
+			if (in_array($no_perkiraan[$i], $coa_hutang_dagang) && ((float)$debit[$i] > 0 || (float)$kredit[$i] > 0)) {
+				$datahutang = array(
+					'tipe'          => $tipe[$i],
+					'nomor'         => $Nomor_JV,
+					'tanggal'       => $tanggal[$i],
+					'no_perkiraan'  => $no_perkiraan[$i],
+					'keterangan'    => $keterangan[$i],
+					'no_reff'       => $no_transaksi,
+					'debet'         => (float)$debit[$i],
+					'kredit'        => (float)$kredit[$i],
+					'id_supplier'   => $id_supplier,
+					'nama_supplier' => $nama_supplier,
+					'no_request'    => $no_transaksi,
+				);
+
+				$this->db->insert('tr_kartu_hutang', $datahutang);
+			}
 		}
 
 		$keterangan	= 'Payment ' . $no_transaksi;
