@@ -471,7 +471,12 @@ class Penerimaan extends Admin_Controller
         foreach ($rows as $row) {
             $sheet->setCellValue('A' . $r, $no++);
             if (!empty($row->tgl_pembayaran)) {
-                $tgl = (float)PHPExcel_Shared_Date::PHPToExcel(strtotime($row->tgl_pembayaran));
+                // Ambil komponen tanggal langsung dari string (hindari konversi lewat strtotime()
+                // + PHPToExcel() yang memaksa timezone UTC, karena itu bisa membuat tanggal
+                // mundur 1 hari saat timezone aplikasi (Asia/Bangkok, UTC+7) berbeda dari UTC).
+                $dateOnly = substr($row->tgl_pembayaran, 0, 10); // 'Y-m-d'
+                list($y, $m, $d) = array_map('intval', explode('-', $dateOnly));
+                $tgl = (float)PHPExcel_Shared_Date::FormattedPHPToExcel($y, $m, $d);
                 $sheet->setCellValueExplicit('B' . $r, $tgl, PHPExcel_Cell_DataType::TYPE_NUMERIC);
                 $sheet->getStyle('B' . $r)->getNumberFormat()->setFormatCode('dd/mmm/yyyy');
             }
@@ -528,7 +533,7 @@ class Penerimaan extends Admin_Controller
         $details = $this->db->get_where('tr_invoice_payment_detail', ['kd_pembayaran' => $kd_pembayaran])->result_array();
 
         // Helper: filter kolom sesuai tabel target
-        $filter_columns = function($data, $table) {
+        $filter_columns = function ($data, $table) {
             $fields = $this->db->list_fields($table);
             $filtered = [];
             foreach ($data as $key => $val) {

@@ -1092,7 +1092,12 @@ class Surat_jalan extends Admin_Controller
             $sheet->setCellValueExplicit('D' . $r, (string)$row->no_so, PHPExcel_Cell_DataType::TYPE_STRING);
             $sheet->setCellValueExplicit('E' . $r, (string)$row->name_customer, PHPExcel_Cell_DataType::TYPE_STRING);
             if (!empty($row->delivery_date)) {
-                $tgl = (float)PHPExcel_Shared_Date::PHPToExcel(strtotime($row->delivery_date));
+                // Ambil komponen tanggal langsung dari string (hindari konversi lewat strtotime()
+                // + PHPToExcel() yang memaksa timezone UTC, karena itu bisa membuat tanggal
+                // mundur 1 hari saat timezone aplikasi (Asia/Bangkok, UTC+7) berbeda dari UTC).
+                $dateOnly = substr($row->delivery_date, 0, 10); // 'Y-m-d'
+                list($y, $m, $d) = array_map('intval', explode('-', $dateOnly));
+                $tgl = (float)PHPExcel_Shared_Date::FormattedPHPToExcel($y, $m, $d);
                 $sheet->setCellValueExplicit('F' . $r, $tgl, PHPExcel_Cell_DataType::TYPE_NUMERIC);
                 $sheet->getStyle('F' . $r)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
             }

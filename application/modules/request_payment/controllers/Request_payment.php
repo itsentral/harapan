@@ -2604,7 +2604,6 @@ class Request_payment extends Admin_Controller
 				$key = preg_replace('/[^A-Za-z0-9_-]/', '_', $item->no_doc);
 				$tanggal_pembayaran = $post['tanggal_pembayaran_' . $key] ?? null;
 				$kategori           = $post['kategori_' . $key] ?? null;
-				$nilai_pengajuan    = $post['nilai_pengajuan_' . $key] ?? null;
 
 				if ($item->tipe == 'Kasbon') {
 
@@ -2619,7 +2618,7 @@ class Request_payment extends Admin_Controller
 						'tgl_doc' => $get_kasbon->tgl_doc,
 						'keperluan' => $get_kasbon->keperluan,
 						'tipe' => 'kasbon',
-						'jumlah' => $nilai_pengajuan,
+						'jumlah' => $get_kasbon->jumlah_kasbon,
 						'status' => 0,
 						'tanggal' => $tanggal_pembayaran,
 						'created_by' => $this->auth->user_name(),
@@ -2637,10 +2636,12 @@ class Request_payment extends Admin_Controller
 				}
 
 				if ($item->tipe == 'Expense') {
-					$this->db->select('a.no_doc, a.tgl_doc, a.nama, a.bank_id, a.accnumber, a.accname, a.id, a.informasi');
+					$this->db->select('a.no_doc, a.tgl_doc, a.nama, a.bank_id, a.accnumber, a.accname, a.id, a.informasi, a.jumlah, a.id_kasbon, a.kurang_bayar');
 					$this->db->from('tr_expense a');
 					$this->db->where('a.no_doc', $item->no_doc);
 					$get_expense = $this->db->get()->row();
+
+					$jumlah_expense = ($get_expense->id_kasbon != null && $get_expense->kurang_bayar > 0) ? $get_expense->kurang_bayar : $get_expense->jumlah;
 
 					$arr_insert[] = [
 						'no_doc' => $item->no_doc,
@@ -2648,7 +2649,7 @@ class Request_payment extends Admin_Controller
 						'tgl_doc' => $get_expense->tgl_doc,
 						'keperluan' => $get_expense->informasi,
 						'tipe' => 'expense',
-						'jumlah' => $nilai_pengajuan,
+						'jumlah' => $jumlah_expense,
 						'status' => 0,
 						'tanggal' => $tanggal_pembayaran,
 						'created_by' => $this->auth->user_name(),
@@ -2672,13 +2673,20 @@ class Request_payment extends Admin_Controller
 					$this->db->where('a.no_req', $item->no_doc);
 					$get_transport = $this->db->get()->row();
 
+					$jumlah_transport = $this->db->select_sum('jumlah_kasbon')
+						->where('no_req', $item->no_doc)
+						->where('req_payment', 0)
+						->get('tr_transport')
+						->row();
+					$jumlah_transport = (!empty($jumlah_transport->jumlah_kasbon)) ? $jumlah_transport->jumlah_kasbon : 0;
+
 					$arr_insert[] = [
 						'no_doc' => $item->no_doc,
 						'nama' => $get_transport->nama,
 						'tgl_doc' => $get_transport->tgl_doc,
 						'keperluan' => $get_transport->keterangan,
 						'tipe' => 'transport',
-						'jumlah' => $nilai_pengajuan,
+						'jumlah' => $jumlah_transport,
 						'status' => 0,
 						'tanggal' => $tanggal_pembayaran,
 						'created_by' => $this->auth->user_name(),

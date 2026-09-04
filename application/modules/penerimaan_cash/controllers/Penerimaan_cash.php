@@ -380,6 +380,10 @@ class Penerimaan_cash extends Admin_Controller
 					'tipe_bayar'         => "CASH"
 				]);
 
+				if ($this->db->affected_rows() == 0) {
+					throw new Exception("Gagal insert detail pembayaran untuk invoice {$row['id_invoice']}");
+				}
+
 				// Tandai CN yang digunakan
 				if (!empty($row['cn']) && is_array($row['cn'])) {
 					foreach ($row['cn'] as $cn_item) {
@@ -1235,7 +1239,12 @@ class Penerimaan_cash extends Admin_Controller
 		foreach ($rows as $row) {
 			$sheet->setCellValue('A' . $r, $no++);
 			if (!empty($row->tgl_pembayaran)) {
-				$tgl = (float)PHPExcel_Shared_Date::PHPToExcel(strtotime($row->tgl_pembayaran));
+				// Ambil komponen tanggal langsung dari string (hindari konversi lewat strtotime()
+				// + PHPToExcel() yang memaksa timezone UTC, karena itu bisa membuat tanggal
+				// mundur 1 hari saat timezone aplikasi (Asia/Bangkok, UTC+7) berbeda dari UTC).
+				$dateOnly = substr($row->tgl_pembayaran, 0, 10); // 'Y-m-d'
+				list($y, $m, $d) = array_map('intval', explode('-', $dateOnly));
+				$tgl = (float)PHPExcel_Shared_Date::FormattedPHPToExcel($y, $m, $d);
 				$sheet->setCellValueExplicit('B' . $r, $tgl, PHPExcel_Cell_DataType::TYPE_NUMERIC);
 				$sheet->getStyle('B' . $r)->getNumberFormat()->setFormatCode('dd/mmm/yyyy');
 			}

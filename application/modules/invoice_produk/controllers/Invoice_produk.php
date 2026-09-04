@@ -1511,7 +1511,12 @@ class Invoice_produk extends Admin_Controller
 
 			// Format Tanggal (numeric excel serial)
 			if (!empty($item->delivery_date)) {
-				$tgl_kirim = (float)PHPExcel_Shared_Date::PHPToExcel(strtotime($item->delivery_date));
+				// Ambil komponen tanggal langsung dari string (hindari konversi lewat strtotime()
+				// + PHPToExcel() yang memaksa timezone UTC, karena itu bisa membuat tanggal
+				// mundur 1 hari saat timezone aplikasi (Asia/Bangkok, UTC+7) berbeda dari UTC).
+				$dateOnlyKirim = substr($item->delivery_date, 0, 10); // 'Y-m-d'
+				list($yk, $mk, $dk) = array_map('intval', explode('-', $dateOnlyKirim));
+				$tgl_kirim = (float)PHPExcel_Shared_Date::FormattedPHPToExcel($yk, $mk, $dk);
 				$sheet->setCellValueExplicit('C' . $r, $tgl_kirim, PHPExcel_Cell_DataType::TYPE_NUMERIC);
 				$sheet->getStyle('C' . $r)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
 			} else {
@@ -1521,7 +1526,12 @@ class Invoice_produk extends Admin_Controller
 			$sheet->setCellValueExplicit('D' . $r, (string)$item->id_invoice, PHPExcel_Cell_DataType::TYPE_STRING);
 
 			if (!empty($item->created_on)) {
-				$tgl_inv = (float)PHPExcel_Shared_Date::PHPToExcel(strtotime($item->created_on));
+				// Ambil komponen tanggal langsung dari string (hindari konversi lewat strtotime()
+				// + PHPToExcel() yang memaksa timezone UTC, karena itu bisa membuat tanggal
+				// mundur 1 hari saat timezone aplikasi (Asia/Bangkok, UTC+7) berbeda dari UTC).
+				$dateOnlyInv = substr($item->created_on, 0, 10); // 'Y-m-d'
+				list($yi, $mi, $di) = array_map('intval', explode('-', $dateOnlyInv));
+				$tgl_inv = (float)PHPExcel_Shared_Date::FormattedPHPToExcel($yi, $mi, $di);
 				$sheet->setCellValueExplicit('E' . $r, $tgl_inv, PHPExcel_Cell_DataType::TYPE_NUMERIC);
 				$sheet->getStyle('E' . $r)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
 			} else {
