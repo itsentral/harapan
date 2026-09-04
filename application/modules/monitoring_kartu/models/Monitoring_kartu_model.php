@@ -106,9 +106,14 @@ class Monitoring_kartu_model extends BF_Model
             $nestedData[] = "<div class='text-right'>" . number_format((float)$row['debet'], 0, ',', '.') . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format((float)$row['kredit'], 0, ',', '.') . "</div>";
 
+            $btn_edit = "<button type='button' class='btn btn-xs btn-warning btn-edit' "
+                . "data-id='" . (int)$row['id'] . "' "
+                . "data-debet='" . (float)$row['debet'] . "' "
+                . "data-kredit='" . (float)$row['kredit'] . "' "
+                . "title='Edit Debet/Kredit'><i class='fa fa-pencil'></i></button> ";
             $btn_hapus = "<button type='button' class='btn btn-xs btn-danger btn-hapus' "
                 . "data-id='" . (int)$row['id'] . "' title='Hapus'><i class='fa fa-trash'></i></button>";
-            $nestedData[] = "<div class='text-center'>{$btn_hapus}</div>";
+            $nestedData[] = "<div class='text-center'>{$btn_edit}{$btn_hapus}</div>";
 
             $data[] = $nestedData;
             $urut++;
@@ -181,6 +186,78 @@ class Monitoring_kartu_model extends BF_Model
         }
 
         return ['status' => true, 'message' => 'Data berhasil dihapus dan dipindahkan ke arsip.'];
+    }
+
+    /**
+     * Ambil satu baris kartu untuk keperluan edit.
+     *
+     * @param  string $jenis 'hutang' | 'piutang'
+     * @param  int    $id
+     * @return array|null
+     */
+    public function get_row($jenis, $id)
+    {
+        $jenis = strtolower(trim($jenis));
+        if (!in_array($jenis, ['hutang', 'piutang'], true)) {
+            return null;
+        }
+
+        $id = (int)$id;
+        if ($id <= 0) {
+            return null;
+        }
+
+        $table = ($jenis === 'hutang') ? 'tr_kartu_hutang' : 'tr_kartu_piutang';
+        $row   = $this->db->where('id', $id)->get($table)->row_array();
+
+        return empty($row) ? null : $row;
+    }
+
+    /**
+     * Update nilai debet & kredit satu baris kartu.
+     *
+     * @param  string $jenis  'hutang' | 'piutang'
+     * @param  int    $id
+     * @param  float  $debet
+     * @param  float  $kredit
+     * @return array  ['status' => bool, 'message' => string]
+     */
+    public function update_nilai($jenis, $id, $debet, $kredit)
+    {
+        $jenis = strtolower(trim($jenis));
+        if (!in_array($jenis, ['hutang', 'piutang'], true)) {
+            return ['status' => false, 'message' => 'Jenis kartu tidak valid.'];
+        }
+
+        $id = (int)$id;
+        if ($id <= 0) {
+            return ['status' => false, 'message' => 'ID tidak valid.'];
+        }
+
+        $debet  = (float)$debet;
+        $kredit = (float)$kredit;
+
+        if ($debet < 0 || $kredit < 0) {
+            return ['status' => false, 'message' => 'Nilai debet/kredit tidak boleh negatif.'];
+        }
+
+        $table = ($jenis === 'hutang') ? 'tr_kartu_hutang' : 'tr_kartu_piutang';
+
+        $exists = $this->db->where('id', $id)->get($table)->row_array();
+        if (empty($exists)) {
+            return ['status' => false, 'message' => 'Data tidak ditemukan.'];
+        }
+
+        $this->db->where('id', $id)->update($table, [
+            'debet'  => $debet,
+            'kredit' => $kredit,
+        ]);
+
+        if ($this->db->affected_rows() >= 0) {
+            return ['status' => true, 'message' => 'Nilai debet/kredit berhasil diperbarui.'];
+        }
+
+        return ['status' => false, 'message' => 'Gagal memperbarui data.'];
     }
 
     private function _current_user()

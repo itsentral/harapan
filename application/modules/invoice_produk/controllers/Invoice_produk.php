@@ -621,6 +621,19 @@ class Invoice_produk extends Admin_Controller
 			$tipe_jurnal    = $this->input->post('tipe');
 			$jenis_jurnal   = $this->input->post('jenis_jurnal');
 
+			// Hitung nilai piutang dagang (COA 1102-01-01) dari detail jurnal,
+			// bukan total invoice keseluruhan.
+			$piutang_dagang = 0;
+			$arr_no_coa = $this->input->post('no_coa');
+			$arr_debet  = $this->input->post('debet');
+			if (is_array($arr_no_coa)) {
+				for ($p = 0; $p < count($arr_no_coa); $p++) {
+					if ($arr_no_coa[$p] == '1102-01-01') {
+						$piutang_dagang += (float) str_replace(",", "", $arr_debet[$p]);
+					}
+				}
+			}
+
 			$total_po       = $this->input->post('total_po');
 			$id_vendor      = $this->input->post('vendor_id');
 			$nama_vendor    = $this->input->post('vendor_nm'); //SYAMSUDIN 29-08-2025
@@ -684,7 +697,7 @@ class Invoice_produk extends Admin_Controller
 				'no_perkiraan'  => '1102-01-01',
 				'keterangan'    => $keterangan,
 				'no_reff'       => $No_Inv,
-				'debet'         => $total,
+				'debet'         => $piutang_dagang,
 				'kredit'         =>  0,
 				'id_supplier'     => $id_cust,
 				'nama_supplier'   => $nama,
@@ -749,7 +762,7 @@ class Invoice_produk extends Admin_Controller
 				'no_perkiraan'  => '1102-01-01',
 				'keterangan'    => $keterangan,
 				'no_reff'       => $No_Inv,
-				'debet'         => $total,
+				'debet'         => $piutang_dagang,
 				'kredit'        =>  0,
 				'id_supplier'   => $id_cust,
 				'nama_supplier' => $nama,

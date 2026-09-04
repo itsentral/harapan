@@ -59,7 +59,7 @@
                         <th>Keterangan</th>
                         <th>Debet</th>
                         <th>Kredit</th>
-                        <th width="60">Action</th>
+                        <th width="90">Action</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -74,6 +74,51 @@
             </table>
         </div>
 
+    </div>
+</div>
+
+<!-- Modal Edit Debet/Kredit -->
+<div class="modal fade" id="modal-edit" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="form-edit">
+                <div class="modal-header bg-warning">
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    <h4 class="modal-title"><i class="fa fa-pencil"></i> Edit Debet / Kredit</h4>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit-id" name="id">
+                    <div class="form-group">
+                        <label>Nomor</label>
+                        <input type="text" id="edit-nomor" class="form-control" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Keterangan</label>
+                        <input type="text" id="edit-keterangan" class="form-control" readonly>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Debet</label>
+                                <input type="text" id="edit-debet" name="debet" class="form-control text-right money" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Kredit</label>
+                                <input type="text" id="edit-kredit" name="kredit" class="form-control text-right money" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="btn-simpan-edit">
+                        <i class="fa fa-save"></i> Simpan
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -150,7 +195,7 @@ $(document).ready(function () {
             columnDefs: [
                 { targets: 0, orderable: false, width: '30px' },
                 { targets: [8, 9], className: 'text-right' },
-                { targets: 10, orderable: false, searchable: false, className: 'text-center', width: '60px' }
+                { targets: 10, orderable: false, searchable: false, className: 'text-center', width: '90px' }
             ],
             ajax: {
                 url: base_url + active_controller + '/data',
@@ -191,6 +236,82 @@ $(document).ready(function () {
 
     $('#btn-excel').on('click', function () {
         window.location.href = base_url + active_controller + '/export_excel?' + buildQuery();
+    });
+
+    // Format ribuan untuk input uang
+    function unformatMoney(v) {
+        if (v === null || v === undefined) return '';
+        return ('' + v).replace(/\./g, '').replace(/,/g, '.');
+    }
+
+    $('#modal-edit').on('input', '.money', function () {
+        var raw = $(this).val().replace(/[^\d]/g, '');
+        if (raw === '') { $(this).val(''); return; }
+        $(this).val(parseInt(raw, 10).toLocaleString('id-ID'));
+    });
+
+    // Edit baris: buka modal & isi form
+    $('#tbl-kartu').on('click', '.btn-edit', function () {
+        var id     = $(this).data('id');
+        var jenis  = $('#jenis').val();
+
+        $.ajax({
+            url: base_url + active_controller + '/get_detail',
+            type: 'POST',
+            dataType: 'json',
+            data: { id: id, jenis: jenis },
+            success: function (res) {
+                if (!res.status) {
+                    swal({ title: 'Gagal', text: res.message, type: 'error' });
+                    return;
+                }
+                var d = res.data;
+                $('#edit-id').val(d.id);
+                $('#edit-nomor').val(d.nomor);
+                $('#edit-keterangan').val(d.keterangan);
+                $('#edit-debet').val(formatNumber(d.debet));
+                $('#edit-kredit').val(formatNumber(d.kredit));
+                $('#modal-edit').modal('show');
+            },
+            error: function () {
+                swal({ title: 'Error', text: 'Gagal mengambil data.', type: 'error' });
+            }
+        });
+    });
+
+    // Simpan perubahan debet/kredit
+    $('#form-edit').on('submit', function (e) {
+        e.preventDefault();
+
+        var id     = $('#edit-id').val();
+        var jenis  = $('#jenis').val();
+        var debet  = unformatMoney($('#edit-debet').val()) || 0;
+        var kredit = unformatMoney($('#edit-kredit').val()) || 0;
+
+        var $btn = $('#btn-simpan-edit');
+        $btn.prop('disabled', true);
+
+        $.ajax({
+            url: base_url + active_controller + '/update',
+            type: 'POST',
+            dataType: 'json',
+            data: { id: id, jenis: jenis, debet: debet, kredit: kredit },
+            success: function (res) {
+                if (res.status) {
+                    $('#modal-edit').modal('hide');
+                    swal({ title: 'Berhasil', text: res.message, type: 'success' });
+                    if (dtKartu) dtKartu.ajax.reload(null, false);
+                } else {
+                    swal({ title: 'Gagal', text: res.message, type: 'error' });
+                }
+            },
+            error: function () {
+                swal({ title: 'Error', text: 'Koneksi gagal, coba lagi.', type: 'error' });
+            },
+            complete: function () {
+                $btn.prop('disabled', false);
+            }
+        });
     });
 
     // Hapus baris (dipindahkan ke tabel _deleted)

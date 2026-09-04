@@ -11,6 +11,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 class Monitoring_kartu extends Admin_Controller
 {
     protected $viewPermission   = 'Monitoring_Kartu.View';
+    protected $editPermission   = 'Monitoring_Kartu.Edit';
     protected $deletePermission = 'Monitoring_Kartu.Delete';
 
     public function __construct()
@@ -54,6 +55,63 @@ class Monitoring_kartu extends Admin_Controller
         $id    = (int)$this->input->post('id');
 
         $result = $this->Monitoring_kartu_model->arsip_hapus($jenis, $id);
+
+        echo json_encode($result);
+    }
+
+    /**
+     * AJAX: ambil detail satu baris kartu untuk form edit.
+     * POST: jenis (hutang|piutang), id
+     */
+    public function get_detail()
+    {
+        $this->auth->restrict($this->editPermission);
+
+        if (!$this->input->is_ajax_request()) {
+            show_error('Akses tidak diizinkan.');
+        }
+
+        $jenis = strtolower(trim($this->input->post('jenis')));
+        $id    = (int)$this->input->post('id');
+
+        $row = $this->Monitoring_kartu_model->get_row($jenis, $id);
+
+        if (empty($row)) {
+            echo json_encode(['status' => false, 'message' => 'Data tidak ditemukan.']);
+            return;
+        }
+
+        echo json_encode([
+            'status' => true,
+            'data'   => [
+                'id'         => (int)$row['id'],
+                'nomor'      => $row['nomor'],
+                'tanggal'    => $row['tanggal'],
+                'keterangan' => $row['keterangan'],
+                'debet'      => (float)$row['debet'],
+                'kredit'     => (float)$row['kredit'],
+            ],
+        ]);
+    }
+
+    /**
+     * AJAX: update nilai debet & kredit satu baris kartu.
+     * POST: jenis (hutang|piutang), id, debet, kredit
+     */
+    public function update()
+    {
+        $this->auth->restrict($this->editPermission);
+
+        if (!$this->input->is_ajax_request()) {
+            show_error('Akses tidak diizinkan.');
+        }
+
+        $jenis  = strtolower(trim($this->input->post('jenis')));
+        $id     = (int)$this->input->post('id');
+        $debet  = (float)str_replace(['.', ','], ['', '.'], $this->input->post('debet'));
+        $kredit = (float)str_replace(['.', ','], ['', '.'], $this->input->post('kredit'));
+
+        $result = $this->Monitoring_kartu_model->update_nilai($jenis, $id, $debet, $kredit);
 
         echo json_encode($result);
     }
