@@ -4,12 +4,12 @@
     <div class="box-header clearfix">
         <span class="pull-left">
             <small class="text-muted">
-                Harga sekarang diambil dari <b>warehouse_stock</b>, harga lalu dari <b>warehouse_stock_per_days</b> (filter tanggal backup).
+                Kosongkan tanggal untuk harga sekarang (<b>warehouse_stock</b>). Pilih tanggal untuk harga lalu (<b>warehouse_stock_per_days</b>).
             </small>
         </span>
         <span class="pull-right" style="max-width:250px">
             <div class="input-group">
-                <span class="input-group-addon">Tgl Harga Lalu</span>
+                <span class="input-group-addon">Tanggal</span>
                 <input type="text" name="tanggal" id="filterTanggal" class="form-control datepicker tanggal">
             </div>
         </span>
@@ -22,9 +22,7 @@
                         <th>No</th>
                         <th>Id Material</th>
                         <th>Product</th>
-                        <th>Costbook Lalu</th>
-                        <th>Costbook Sekarang</th>
-                        <th>Selisih</th>
+                        <th>Costbook</th>
                     </tr>
                 </thead>
                 <tbody>
