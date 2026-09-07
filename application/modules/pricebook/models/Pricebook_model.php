@@ -45,17 +45,13 @@ class Pricebook_model extends BF_Model
                 ? ($total_data - $start_dari) - $urut2
                 : $urut1 + $start_dari;
 
-            $harga_sekarang = isset($row['harga_sekarang']) ? $row['harga_sekarang'] : 0;
-            $harga_lalu     = isset($row['harga_lalu']) ? $row['harga_lalu'] : 0;
-            $selisih        = $harga_sekarang - $harga_lalu;
+            $costbook = isset($row['costbook']) ? $row['costbook'] : 0;
 
             $nestedData = [];
             $nestedData[] = "<div align='center'>{$nomor}</div>";
             $nestedData[] = "<div align='center'>{$row['id_material']}</div>";
             $nestedData[] = "<div align='left'>{$row['nm_product']}</div>";
-            $nestedData[] = "<div align='right'>" . number_format($harga_lalu, 0, ',', '.') . "</div>";
-            $nestedData[] = "<div align='right'>" . number_format($harga_sekarang, 0, ',', '.') . "</div>";
-            $nestedData[] = "<div align='right'>" . number_format($selisih, 0, ',', '.') . "</div>";
+            $nestedData[] = "<div align='right'>" . number_format($costbook, 0, ',', '.') . "</div>";
 
             $data[] = $nestedData;
             $urut1++;
@@ -75,8 +71,9 @@ class Pricebook_model extends BF_Model
     /**
      * Query pricebook.
      *
-     * Base table   : warehouse_stock (ws)  -> harga sekarang
-     * Joined table : warehouse_stock_per_days (wp) filter by tgl_backup -> harga lalu
+     * Sumber costbook tergantung filter tanggal:
+     * - Tanggal kosong  -> harga sekarang dari warehouse_stock
+     * - Tanggal terisi  -> harga lalu dari warehouse_stock_per_days (filter tgl_backup)
      */
     public function get_query_json_pricebook(
         $like_value = null,
@@ -86,57 +83,66 @@ class Pricebook_model extends BF_Model
         $limit_length = null,
         $tanggal = null
     ) {
+        $has_tanggal = ($tanggal !== null && $tanggal !== '');
+
+        if ($has_tanggal) {
+            // Harga lalu dari warehouse_stock_per_days
+            $table   = 'warehouse_stock_per_days t';
+            $tgl_esc = $this->db->escape_like_str($tanggal);
+        } else {
+            // Harga sekarang dari warehouse_stock
+            $table = 'warehouse_stock t';
+        }
+
         $columns_order_by = [
-            0 => 'ws.id_material',
-            1 => 'ws.id_material',
-            2 => 'ws.nm_product',
-            3 => 'harga_lalu',
-            4 => 'harga_sekarang',
+            0 => 't.id_material',
+            1 => 't.id_material',
+            2 => 't.nm_product',
+            3 => 'costbook',
         ];
 
-        // Subquery harga lalu berdasarkan tgl_backup (ambil per id_material)
-        $tgl_backup = ($tanggal !== null && $tanggal !== '') ? $this->db->escape_like_str($tanggal) : '';
-        $join_lalu = '(SELECT p.id_material, MAX(p.harga_beli) AS harga_lalu
-                       FROM warehouse_stock_per_days p
-                       WHERE p.tgl_backup LIKE "%' . $tgl_backup . '%"
-                       GROUP BY p.id_material) wp';
-
         // ---- total data
-        $this->db->select('ws.id_material');
-        $this->db->from('warehouse_stock ws');
-        $this->db->group_by('ws.id_material');
-        $totalData = $this->db->count_all_results();
+        $this->db->select('t.id_material');
+        $this->db->from($table);
+        if ($has_tanggal) {
+            $this->db->like('t.tgl_backup', $tanggal);
+        }
+        $this->db->group_by('t.id_material');
+        $totalData = count($this->db->get()->result_array());
 
         // ---- total filtered
-        $this->db->select('ws.id_material');
-        $this->db->from('warehouse_stock ws');
+        $this->db->select('t.id_material');
+        $this->db->from($table);
+        if ($has_tanggal) {
+            $this->db->like('t.tgl_backup', $tanggal);
+        }
         if ($like_value) {
             $this->db->group_start();
-            $this->db->like('ws.id_material', $like_value);
-            $this->db->or_like('ws.nm_product', $like_value);
+            $this->db->like('t.id_material', $like_value);
+            $this->db->or_like('t.nm_product', $like_value);
             $this->db->group_end();
         }
-        $this->db->group_by('ws.id_material');
+        $this->db->group_by('t.id_material');
         $totalFiltered = count($this->db->get()->result_array());
 
         // ---- main query
-        $this->db->select('ws.id_material, ws.nm_product,
-                           MAX(ws.harga_beli) AS harga_sekarang,
-                           MAX(wp.harga_lalu) AS harga_lalu');
-        $this->db->from('warehouse_stock ws');
-        $this->db->join($join_lalu, 'wp.id_material = ws.id_material', 'left');
+        $this->db->select('t.id_material, t.nm_product, MAX(t.harga_beli) AS costbook');
+        $this->db->from($table);
+        if ($has_tanggal) {
+            $this->db->like('t.tgl_backup', $tanggal);
+        }
         if ($like_value) {
             $this->db->group_start();
-            $this->db->like('ws.id_material', $like_value);
-            $this->db->or_like('ws.nm_product', $like_value);
+            $this->db->like('t.id_material', $like_value);
+            $this->db->or_like('t.nm_product', $like_value);
             $this->db->group_end();
         }
-        $this->db->group_by('ws.id_material, ws.nm_product');
+        $this->db->group_by('t.id_material, t.nm_product');
 
         if ($column_order !== null && isset($columns_order_by[$column_order])) {
             $this->db->order_by($columns_order_by[$column_order], $column_dir);
         } else {
-            $this->db->order_by('ws.nm_product', 'asc');
+            $this->db->order_by('t.nm_product', 'asc');
         }
         if ($limit_length != -1) {
             $this->db->limit($limit_length, $limit_start);
