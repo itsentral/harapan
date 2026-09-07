@@ -4,7 +4,7 @@
     <div class="box-header clearfix">
         <span class="pull-left">
             <small class="text-muted">
-                Kosongkan tanggal untuk harga sekarang (<b>warehouse_stock</b>). Pilih tanggal untuk harga lalu (<b>warehouse_stock_per_days</b>).
+                Kosongkan tanggal untuk harga sekarang. Pilih tanggal untuk harga lalu.
             </small>
         </span>
         <span class="pull-right" style="max-width:250px">
