@@ -154,6 +154,9 @@ class Report_margin_achievement_model extends BF_Model
 
             $pctAchOmset = $targetOmset > 0 ? ($realisasiOmset / $targetOmset) : 0;
 
+            // DPP (Dasar Pengenaan Pajak) = Realisasi Omset (Rp) / 1,11 (menghilangkan PPN 11%)
+            $dpp = $realisasiOmset / 1.11;
+
             $targetMarginRp    = $targetOmset * ($targetMarginPct / 100);
             $realisasiMarginRp = $realisasiMarginRpMap[$id] ?? 0;
 
@@ -177,6 +180,7 @@ class Report_margin_achievement_model extends BF_Model
                 'target_omset'         => $targetOmset,
                 'realisasi_omset'      => $realisasiOmset,
                 'pct_ach_omset'        => $pctAchOmset,
+                'dpp'                  => $dpp,
                 'target_margin_rp'     => $targetMarginRp,
                 'realisasi_margin_rp'  => $realisasiMarginRp,
                 'pct_ach_margin'       => $pctAchMargin,
@@ -199,6 +203,7 @@ class Report_margin_achievement_model extends BF_Model
             'target_omset'         => $totalTargetOmset,
             'realisasi_omset'      => $totalRealisasiOmset,
             'pct_ach_omset'        => $totalTargetOmset > 0 ? ($totalRealisasiOmset / $totalTargetOmset) : 0,
+            'dpp'                  => $totalRealisasiOmset / 1.11,
             'target_margin_rp'     => $totalTargetMarginRp,
             'realisasi_margin_rp'  => $totalRealisasiMarginRp,
             // % Ach Margin = Margin % thd Omset (Realisasi) / Target Margin % (weighted average)
