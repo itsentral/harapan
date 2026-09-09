@@ -184,6 +184,29 @@ class Surat_jalan extends Admin_Controller
             ];
         }
 
+        // Preload harga_beli (costbook) per UNIT per produk dari warehouse_stock.
+        // Nilai ini DIBEKUKAN ke surat_jalan_detail.costbook saat Save agar Confirm Delivery
+        // memakai harga yang sama persis — mencegah selisih jurnal In Transit bila harga_beli
+        // berubah (incoming check / product costing) di antara Save dan Confirm.
+        //
+        // Sumber sengaja dibuat identik dengan get_spk() (MAX(harga_beli) tanpa filter gudang)
+        // dan subquery pada confirm_sj()/view_confirm(), sehingga costbook beku SAMA dengan
+        // dasar perhitungan jurnal saat Save maupun Confirm.
+        $costbookMap = [];
+        $productIdsForCost = array_values(array_unique(array_column($detail, 'id_product')));
+        if (!empty($productIdsForCost)) {
+            $ids_escaped = array_map(function ($id) {
+                return $this->db->escape($id);
+            }, $productIdsForCost);
+            $ids_str = implode(',', $ids_escaped);
+            $costRows = $this->db->query(
+                "SELECT id_material, MAX(harga_beli) AS costbook FROM warehouse_stock WHERE id_material IN ({$ids_str}) GROUP BY id_material"
+            )->result_array();
+            foreach ($costRows as $c) {
+                $costbookMap[$c['id_material']] = (float)$c['costbook'];
+            }
+        }
+
         // Prepare Detail
         $ArrDetail = [];
         foreach ($detail as $key => $value) {
@@ -199,6 +222,7 @@ class Surat_jalan extends Admin_Controller
                 'qty'             => $qty,
                 'weight'          => $value['weight'],
                 'total_berat'     => $value['total_berat'],
+                'costbook'        => $costbookMap[$id_product] ?? 0, // harga beku saat Save
                 'id_so_det'       => $id_so_det,
                 'id_spk_det'      => $id_spk_det,
             ];
@@ -529,13 +553,18 @@ class Surat_jalan extends Admin_Controller
         ) wh
     ";
 
+        // Costbook diambil dari nilai BEKU di surat_jalan_detail (d.costbook) yang disimpan
+        // saat Save. Untuk SJ lama yang belum punya nilai beku (costbook NULL), fallback ke
+        // harga warehouse_stock (wh.costbook) agar tetap tampil. wh_sub tetap dipakai untuk id_unit.
         $detail = $this->db
             ->select('
-            d.*,
+            d.id, d.id_sj, d.id_so_det, d.id_spk_det, d.no_surat_jalan,
+            d.id_product, d.product, d.qty, d.weight, d.total_berat,
+            d.qty_terkirim, d.qty_retur, d.qty_hilang, d.qty_lebih, d.reason, d.file_bukti,
             s.code,
             COALESCE(sdd.qty_so, 0)  AS qty_so,
             COALESCE(sdd.qty_spk, 0) AS qty_spk,
-            COALESCE(wh.costbook, 0) AS costbook
+            COALESCE(d.costbook, wh.costbook, 0) AS costbook
         ')
             ->from('surat_jalan_detail d')
             ->join('surat_jalan sj', 'sj.id = d.id_sj') // untuk akses sj.no_delivery di join sdd
@@ -604,13 +633,17 @@ class Surat_jalan extends Admin_Controller
 
         // Detail sudah menyimpan qty_terkirim/qty_retur/qty_hilang/qty_lebih
         // hasil proses confirm() — tinggal ditampilkan read-only di sini.
+        // Costbook diambil dari nilai BEKU (d.costbook) yang disimpan saat Save; fallback ke
+        // warehouse_stock (wh.costbook) hanya untuk SJ lama yang costbook-nya masih NULL.
         $detail = $this->db
             ->select('
-            d.*,
+            d.id, d.id_sj, d.id_so_det, d.id_spk_det, d.no_surat_jalan,
+            d.id_product, d.product, d.qty, d.weight, d.total_berat,
+            d.qty_terkirim, d.qty_retur, d.qty_hilang, d.qty_lebih, d.reason, d.file_bukti,
             s.code,
             COALESCE(sdd.qty_so, 0)  AS qty_so,
             COALESCE(sdd.qty_spk, 0) AS qty_spk,
-            COALESCE(wh.costbook, 0) AS costbook
+            COALESCE(d.costbook, wh.costbook, 0) AS costbook
         ')
             ->from('surat_jalan_detail d')
             ->join('surat_jalan sj', 'sj.id = d.id_sj')

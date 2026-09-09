@@ -255,6 +255,7 @@
         let selectedInvoiceIds = [];
         let selectedCnIds = []; // array no_retur CN yang dipilih
         let selectedCnData = {}; // map no_retur => {id_invoice, nilai}
+        let detailRowSeq = 0; // counter index unik utk name="detail[...]" (tidak pernah dipakai ulang)
 
         $('.select2').select2({
             width: '100%'
@@ -484,13 +485,16 @@
                 }
             });
 
-            let rowIndex = $('#tableInv tbody tr').length;
-
             selectedInvoices.forEach((inv) => {
                 if (selectedInvoiceIds.includes(inv.id_invoice)) return;
 
                 selectedInvoiceIds.push(inv.id_invoice);
-                rowIndex++;
+
+                // index unik utk name="detail[...]" — selalu naik, tidak pernah dipakai ulang
+                // sehingga baris tidak bisa saling menimpa walau ada hapus/pilih ulang.
+                const idx = detailRowSeq++;
+                // nomor urut tampilan mengikuti posisi baris di tabel (bukan index array)
+                const displayNo = $('#tableInv tbody tr').length + 1;
 
                 const totalCn = cnByInvoice[inv.id_invoice] || 0;
                 const cnDetails = cnDetailByInvoice[inv.id_invoice] || [];
@@ -501,8 +505,8 @@
                 let cnHiddenInputs = '';
                 cnDetails.forEach(function(cn, ci) {
                     cnHiddenInputs += `
-                        <input type="hidden" name="detail[${rowIndex}][cn][${ci}][no_retur]" value="${cn.no_retur}">
-                        <input type="hidden" name="detail[${rowIndex}][cn][${ci}][nilai]" value="${cn.nilai}">
+                        <input type="hidden" name="detail[${idx}][cn][${ci}][no_retur]" value="${cn.no_retur}">
+                        <input type="hidden" name="detail[${idx}][cn][${ci}][nilai]" value="${cn.nilai}">
                     `;
                 });
 
@@ -515,23 +519,23 @@
 
                 $('#tableInv tbody').append(`
                     <tr>
-                        <td class="text-center">${rowIndex}</td>
+                        <td class="text-center">${displayNo}</td>
                         <td>${inv.id_invoice}${cnLabel}</td>
                         <td>
-                            <input type="text" name="detail[${rowIndex}][tagihan]" class="form-control text-right tagihan auto_num" value="${sisaTagihan}" readonly />
+                            <input type="text" name="detail[${idx}][tagihan]" class="form-control text-right tagihan auto_num" value="${sisaTagihan}" readonly />
                         </td>
                         <td>
-                            <input type="text" name="detail[${rowIndex}][sisa_invoice]" class="form-control text-right sisa_invoice auto_num" value="${nominal}" readonly/>
+                            <input type="text" name="detail[${idx}][sisa_invoice]" class="form-control text-right sisa_invoice auto_num" value="${nominal}" readonly/>
                         </td>
                         <td>
-                            <input type="text" name="detail[${rowIndex}][total_bayar]" class="form-control text-right total_bayar auto_num" value="${nominal}" readonly/>
+                            <input type="text" name="detail[${idx}][total_bayar]" class="form-control text-right total_bayar auto_num" value="${nominal}" readonly/>
                         </td>
                         <td class="text-center">
                             <button class="btn btn-danger btn-sm btn-remove"><i class="fa fa-trash"></i></button>
                         </td>
-                        <input type="hidden" name="detail[${rowIndex}][id_invoice]" value="${inv.id_invoice}">
-                        <input type="hidden" name="detail[${rowIndex}][id_so]" value="${inv.id_so}">
-                        <input type="hidden" name="detail[${rowIndex}][total_cn]" value="${totalCn}">
+                        <input type="hidden" name="detail[${idx}][id_invoice]" value="${inv.id_invoice}">
+                        <input type="hidden" name="detail[${idx}][id_so]" value="${inv.id_so}">
+                        <input type="hidden" name="detail[${idx}][total_cn]" value="${totalCn}">
                         ${cnHiddenInputs}
                     </tr>
                 `);
@@ -548,6 +552,13 @@
             const totalTerima = parseFloat(($('#totalTerima').val() || '0').replace(/,/g, '')) || 0;
             if (totalTerima <= 0) {
                 swal('Peringatan', 'Total penerimaan tidak boleh 0. Silahkan isi nominal pembayaran.', 'warning');
+                return;
+            }
+
+            // Cegah overpayment: total penerimaan tidak boleh melebihi total invoice (tagihan efektif)
+            const totalInvoiceVal = parseFloat(($('#totalInvoice').val() || '0').replace(/,/g, '')) || 0;
+            if (totalTerima > totalInvoiceVal) {
+                swal('Peringatan', 'Total penerimaan (' + $('#totalTerima').val() + ') melebihi total invoice (' + $('#totalInvoice').val() + '). Overpayment tidak diperbolehkan.', 'warning');
                 return;
             }
 

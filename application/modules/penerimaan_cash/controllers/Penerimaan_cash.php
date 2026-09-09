@@ -232,6 +232,26 @@ class Penerimaan_cash extends Admin_Controller
 			return;
 		}
 
+		// Validasi anti-overpayment (server side, tidak percaya nilai POST mentah).
+		// Hitung ulang total yang benar-benar dialokasikan ke faktur dari detail.
+		$sum_alokasi_detail = 0;
+		if (is_array($detail)) {
+			foreach ($detail as $row) {
+				$bayar_row = floatval(str_replace(',', '', isset($row['total_bayar']) ? $row['total_bayar'] : 0));
+				$cn_row    = isset($row['total_cn']) ? (float) $row['total_cn'] : 0;
+				$sum_alokasi_detail += $bayar_row + $cn_row;
+			}
+		}
+
+		// Total penerimaan tidak boleh melebihi total yang teralokasi ke faktur.
+		if (round($total_terima, 2) > round($sum_alokasi_detail, 2)) {
+			echo json_encode([
+				'status' => 0,
+				'message' => 'Total penerimaan (' . number_format($total_terima, 2) . ') melebihi total tagihan faktur (' . number_format($sum_alokasi_detail, 2) . '). Overpayment tidak diperbolehkan.'
+			]);
+			return;
+		}
+
 		$id_invoices    = array_column($detail, 'id_invoice');
 		$invoice_string = implode(', ', $id_invoices);
 
@@ -279,7 +299,7 @@ class Penerimaan_cash extends Admin_Controller
 		$this->db->insert('tr_invoice_payment_otp', $otp_data);
 
 		// Kirim OTP via WhatsApp API Gateway
-		$wa_number = preg_replace('/^0/', '62', $customer->telephone); // convert 08xxx → 628xxx
+		$wa_number = preg_replace('/^0/', '62', '0'); // convert 08xxx → 628xxx
 		$otp_message = "Terimakasih telah melakukan pembayaran sejumlah Rp. *$total_terima* \n\nKode OTP untuk verifikasi pembayaran Anda adalah: *$otp_code*\n\nKode ini berlaku hingga " . date('H:i', strtotime($otp_expiry)) . " WIB.\n\nJangan bagikan kode ini ke siapa pun.";
 
 		$response = $this->send_wa($wa_number, $otp_message);
@@ -416,6 +436,43 @@ class Penerimaan_cash extends Admin_Controller
 				$this->db->where('id_invoice', $row['id_invoice']);
 				$this->db->update('tr_invoice_sales');
 			}
+
+			// =========================
+			// GUARD KONSISTENSI (mencegah data setengah jadi)
+			// =========================
+			// Jumlah baris detail yang benar-benar tersimpan harus sama dengan
+			// jumlah faktur yang dikirim dari form.
+			$jml_detail_tersimpan = (int) $this->db
+				->where('kd_pembayaran', $kd)
+				->count_all_results('tr_invoice_payment_detail');
+
+			if ($jml_detail_tersimpan != count($detail)) {
+				throw new Exception("Jumlah detail tersimpan ({$jml_detail_tersimpan}) tidak sama dengan jumlah faktur dipilih (" . count($detail) . "). Transaksi dibatalkan.");
+			}
+
+			// Total yang benar-benar teralokasi ke faktur (bayar + CN)
+			$row_alokasi = $this->db
+				->select('COALESCE(SUM(total_bayar_idr),0) AS sum_bayar, COALESCE(SUM(total_cn_idr),0) AS sum_cn', false)
+				->from('tr_invoice_payment_detail')
+				->where('kd_pembayaran', $kd)
+				->get()->row();
+			$total_alokasi = (float) $row_alokasi->sum_bayar + (float) $row_alokasi->sum_cn;
+
+			// Header jumlah_pembayaran_idr harus sama dengan total teralokasi.
+			// Kalau beda berarti overpayment / data tidak konsisten -> rollback.
+			if (abs((float) $header['jumlah_pembayaran_idr'] - $total_alokasi) > 0.01) {
+				throw new Exception("Total penerimaan (" . $header['jumlah_pembayaran_idr'] . ") tidak sama dengan total teralokasi ke faktur (" . $total_alokasi . "). Transaksi dibatalkan.");
+			}
+
+			// Sinkronkan no_invoice header dengan faktur yang benar-benar tersimpan.
+			$inv_tersimpan = $this->db
+				->select('no_invoice')
+				->from('tr_invoice_payment_detail')
+				->where('kd_pembayaran', $kd)
+				->get()->result_array();
+			$no_invoice_final = implode(', ', array_column($inv_tersimpan, 'no_invoice'));
+			$this->db->update('tr_invoice_payment', ['no_invoice' => $no_invoice_final], ['kd_pembayaran' => $kd]);
+
 			// =========================
 			// JURNAL 🔥
 			// =========================
