@@ -20,10 +20,12 @@ class Report_margin_achievement_model extends BF_Model
      * - Target Omset       : tabel target_penjualan (kolom dinamis sesuai bulan, mis. jan/feb/...)
      * - Realisasi Omset    : tr_invoice_sales join master_customers, filter bulan & tahun (delivery_date)
      * - Target Margin (%)  : tabel master_margin (id_sales, tahun, bulan)
-     * - Realisasi Margin   : Revenue - HPP (Harga Pokok Penjualan / COGS), dihitung per baris invoice
-     *   dari tr_invoice_sales_detail.subtotal dikurangi (qty x sales_order_detail.harga_beli),
-     *   di-join lewat surat_jalan_detail. Sesuai rumus resmi dari BA:
-     *   Margin (Gross Profit) = Revenue (Omset Penjualan) - HPP (Harga Pokok Penjualan/COGS)
+     * - DPP                : Realisasi Omset (Rp) / 1,11
+     * - Margin mentah (dari HPP aktual): Revenue - HPP (Harga Pokok Penjualan / COGS), dihitung per
+     *   baris invoice dari tr_invoice_sales_detail.subtotal dikurangi (qty x sales_order_detail.harga_beli),
+     *   di-join lewat surat_jalan_detail.
+     * - Actual Margin (%)  : margin mentah (dari HPP aktual) / Realisasi Omset
+     * - Realisasi Margin (Rp) (ditampilkan) : DPP x Actual Margin (%), sesuai formula resmi di Excel.
      *
      * @param int $bulan_no 1-12
      * @param int $tahun
@@ -144,6 +146,7 @@ class Report_margin_achievement_model extends BF_Model
         $totalRealisasiOmset   = 0;
         $totalTargetMarginRp   = 0;
         $totalRealisasiMarginRp = 0;
+        $totalRealisasiMarginRpRaw = 0; // akumulasi margin mentah (Revenue - HPP), untuk hitung Actual Margin % total
 
         foreach ($allSales as $s) {
             $id = $s['id'];
@@ -157,12 +160,18 @@ class Report_margin_achievement_model extends BF_Model
             // DPP (Dasar Pengenaan Pajak) = Realisasi Omset (Rp) / 1,11 (menghilangkan PPN 11%)
             $dpp = $realisasiOmset / 1.11;
 
-            $targetMarginRp    = $targetOmset * ($targetMarginPct / 100);
-            $realisasiMarginRp = $realisasiMarginRpMap[$id] ?? 0;
+            $targetMarginRp = $targetOmset * ($targetMarginPct / 100);
 
-            $marginPctThdOmset = $realisasiOmset > 0 ? ($realisasiMarginRp / $realisasiOmset) : 0;
+            // Margin mentah dari data HPP aktual per baris invoice (Revenue - HPP, lihat query D2)
+            $realisasiMarginRpRaw = $realisasiMarginRpMap[$id] ?? 0;
 
-            // % Ach Margin = Margin % thd Omset (Realisasi) / Target Margin %
+            // Actual Margin (%) = margin mentah (dari HPP aktual) / Realisasi Omset
+            $marginPctThdOmset = $realisasiOmset > 0 ? ($realisasiMarginRpRaw / $realisasiOmset) : 0;
+
+            // Realisasi Margin (Rp) yang DITAMPILKAN = DPP x Actual Margin (%)
+            $realisasiMarginRp = $dpp * $marginPctThdOmset;
+
+            // % Ach Margin = Actual Margin (%) / Target Margin %
             // (murni membandingkan rate margin aktual vs rate target, terlepas dari pencapaian omset)
             $pctAchMargin = $targetMarginPct > 0 ? ($marginPctThdOmset / ($targetMarginPct / 100)) : 0;
 
@@ -189,24 +198,30 @@ class Report_margin_achievement_model extends BF_Model
                 'status'               => $status,
             ];
 
-            $totalTargetOmset       += $targetOmset;
-            $totalRealisasiOmset    += $realisasiOmset;
-            $totalTargetMarginRp    += $targetMarginRp;
-            $totalRealisasiMarginRp += $realisasiMarginRp;
+            $totalTargetOmset          += $targetOmset;
+            $totalRealisasiOmset       += $realisasiOmset;
+            $totalTargetMarginRp       += $targetMarginRp;
+            $totalRealisasiMarginRp    += $realisasiMarginRp;
+            $totalRealisasiMarginRpRaw += $realisasiMarginRpRaw;
         }
 
         // Target Margin % gabungan (weighted average) = Total Target Margin Rp / Total Target Omset
         $totalTargetMarginPct = $totalTargetOmset > 0 ? ($totalTargetMarginRp / $totalTargetOmset) : 0;
-        $totalMarginPctThdOmset = $totalRealisasiOmset > 0 ? ($totalRealisasiMarginRp / $totalRealisasiOmset) : 0;
+        $totalDpp = $totalRealisasiOmset / 1.11;
+        // Actual Margin (%) total = Total margin mentah (raw, dari HPP aktual) / Total Realisasi Omset
+        // (konsisten dengan per-row yang juga pakai margin mentah / Realisasi Omset)
+        $totalMarginPctThdOmset = $totalRealisasiOmset > 0 ? ($totalRealisasiMarginRpRaw / $totalRealisasiOmset) : 0;
+        // Realisasi Margin (Rp) total yang DITAMPILKAN = Total DPP x Actual Margin (%) total
+        $totalRealisasiMarginRpDisplay = $totalDpp * $totalMarginPctThdOmset;
 
         $totals = [
             'target_omset'         => $totalTargetOmset,
             'realisasi_omset'      => $totalRealisasiOmset,
             'pct_ach_omset'        => $totalTargetOmset > 0 ? ($totalRealisasiOmset / $totalTargetOmset) : 0,
-            'dpp'                  => $totalRealisasiOmset / 1.11,
+            'dpp'                  => $totalDpp,
             'target_margin_rp'     => $totalTargetMarginRp,
-            'realisasi_margin_rp'  => $totalRealisasiMarginRp,
-            // % Ach Margin = Margin % thd Omset (Realisasi) / Target Margin % (weighted average)
+            'realisasi_margin_rp'  => $totalRealisasiMarginRpDisplay,
+            // % Ach Margin = Actual Margin (%) / Target Margin % (weighted average)
             'pct_ach_margin'       => $totalTargetMarginPct > 0 ? ($totalMarginPctThdOmset / $totalTargetMarginPct) : 0,
             'margin_pct_thd_omset' => $totalMarginPctThdOmset,
         ];
