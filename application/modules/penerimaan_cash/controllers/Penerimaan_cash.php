@@ -299,7 +299,7 @@ class Penerimaan_cash extends Admin_Controller
 		$this->db->insert('tr_invoice_payment_otp', $otp_data);
 
 		// Kirim OTP via WhatsApp API Gateway
-		$wa_number = preg_replace('/^0/', '62', '0'); // convert 08xxx → 628xxx
+		$wa_number = preg_replace('/^0/', '62', $customer->telephone); // convert 08xxx → 628xxx
 		$otp_message = "Terimakasih telah melakukan pembayaran sejumlah Rp. *$total_terima* \n\nKode OTP untuk verifikasi pembayaran Anda adalah: *$otp_code*\n\nKode ini berlaku hingga " . date('H:i', strtotime($otp_expiry)) . " WIB.\n\nJangan bagikan kode ini ke siapa pun.";
 
 		$response = $this->send_wa($wa_number, $otp_message);
