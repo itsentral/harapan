@@ -89,12 +89,12 @@ class Report_margin_achievement extends Admin_Controller
 
         // ===== JUDUL =====
         $sheet->setCellValue('A1', 'LAPORAN MARGIN ACHIEVEMENT PER SALES');
-        $sheet->mergeCells('A1:J1');
-        $sheet->getStyle('A1:J1')->applyFromArray($styleTitle);
+        $sheet->mergeCells('A1:K1');
+        $sheet->getStyle('A1:K1')->applyFromArray($styleTitle);
 
         $sheet->setCellValue('A2', 'Periode: ' . $nama_bulan . ' ' . $tahun);
-        $sheet->mergeCells('A2:J2');
-        $sheet->getStyle('A2:J2')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+        $sheet->mergeCells('A2:K2');
+        $sheet->getStyle('A2:K2')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
         // ===== HEADER KOLOM =====
         $headers = [
@@ -103,11 +103,12 @@ class Report_margin_achievement extends Admin_Controller
             'C' => 'Target Omset (Rp)',
             'D' => 'Realisasi Omset (Rp)',
             'E' => '% Ach Omset',
-            'F' => 'Realisasi Margin (Rp)',
-            'G' => '% Ach Margin',
-            'H' => 'Actual Margin (%)',
-            'I' => 'Target Margin %',
-            'J' => 'Status Achievement',
+            'F' => 'DPP',
+            'G' => 'Realisasi Margin (Rp)',
+            'H' => '% Ach Margin',
+            'I' => 'Actual Margin (%)',
+            'J' => 'Target Margin %',
+            'K' => 'Status Achievement',
         ];
 
         $rowHeader = 4;
@@ -115,7 +116,7 @@ class Report_margin_achievement extends Admin_Controller
             $sheet->setCellValue($col . $rowHeader, $label);
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
-        $sheet->getStyle('A' . $rowHeader . ':J' . $rowHeader)->applyFromArray($tableHeader);
+        $sheet->getStyle('A' . $rowHeader . ':K' . $rowHeader)->applyFromArray($tableHeader);
 
         // Kolom "No" tidak perlu auto-size (cukup lebar untuk 2-3 digit angka),
         // supaya tidak melebar akibat konten lain di kolom A (mis. baris Keterangan).
@@ -138,29 +139,32 @@ class Report_margin_achievement extends Admin_Controller
             $sheet->setCellValueExplicit('E' . $r, $row['pct_ach_omset'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->getStyle('E' . $r)->getNumberFormat()->setFormatCode('0.0%');
 
-            $sheet->setCellValueExplicit('F' . $r, $row['realisasi_margin_rp'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('F' . $r, $row['dpp'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->getStyle('F' . $r)->getNumberFormat()->setFormatCode('#,##0');
 
-            $sheet->setCellValueExplicit('G' . $r, $row['pct_ach_margin'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->getStyle('G' . $r)->getNumberFormat()->setFormatCode('0.0%');
+            $sheet->setCellValueExplicit('G' . $r, $row['realisasi_margin_rp'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->getStyle('G' . $r)->getNumberFormat()->setFormatCode('#,##0');
 
-            $sheet->setCellValueExplicit('H' . $r, $row['margin_pct_thd_omset'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('H' . $r, $row['pct_ach_margin'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->getStyle('H' . $r)->getNumberFormat()->setFormatCode('0.0%');
 
-            $sheet->setCellValueExplicit('I' . $r, $row['target_margin_pct'] / 100, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('I' . $r, $row['margin_pct_thd_omset'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->getStyle('I' . $r)->getNumberFormat()->setFormatCode('0.0%');
 
-            $sheet->setCellValue('J' . $r, $row['status']);
+            $sheet->setCellValueExplicit('J' . $r, $row['target_margin_pct'] / 100, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->getStyle('J' . $r)->getNumberFormat()->setFormatCode('0.0%');
 
-            $sheet->getStyle('A' . $r . ':J' . $r)->applyFromArray($tableBody);
+            $sheet->setCellValue('K' . $r, $row['status']);
+
+            $sheet->getStyle('A' . $r . ':K' . $r)->applyFromArray($tableBody);
 
             // Highlight status
             if ($row['status'] == 'Tercapai') {
-                $sheet->getStyle('J' . $r)->getFont()->getColor()->setRGB('008000');
+                $sheet->getStyle('K' . $r)->getFont()->getColor()->setRGB('008000');
             } elseif ($row['status'] == 'Mendekati Target') {
-                $sheet->getStyle('J' . $r)->getFont()->getColor()->setRGB('B8860B');
+                $sheet->getStyle('K' . $r)->getFont()->getColor()->setRGB('B8860B');
             } else {
-                $sheet->getStyle('J' . $r)->getFont()->getColor()->setRGB('FF0000');
+                $sheet->getStyle('K' . $r)->getFont()->getColor()->setRGB('FF0000');
             }
 
             $no++;
@@ -182,39 +186,43 @@ class Report_margin_achievement extends Admin_Controller
         $sheet->setCellValueExplicit('E' . $r, $totals['pct_ach_omset'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
         $sheet->getStyle('E' . $r)->getNumberFormat()->setFormatCode('0.0%');
 
-        $sheet->setCellValueExplicit('F' . $r, $totals['realisasi_margin_rp'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->setCellValueExplicit('F' . $r, $totals['dpp'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
         $sheet->getStyle('F' . $r)->getNumberFormat()->setFormatCode('#,##0');
 
-        $sheet->setCellValueExplicit('G' . $r, $totals['pct_ach_margin'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
-        $sheet->getStyle('G' . $r)->getNumberFormat()->setFormatCode('0.0%');
+        $sheet->setCellValueExplicit('G' . $r, $totals['realisasi_margin_rp'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->getStyle('G' . $r)->getNumberFormat()->setFormatCode('#,##0');
 
-        $sheet->setCellValueExplicit('H' . $r, $totals['margin_pct_thd_omset'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->setCellValueExplicit('H' . $r, $totals['pct_ach_margin'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
         $sheet->getStyle('H' . $r)->getNumberFormat()->setFormatCode('0.0%');
 
-        $sheet->setCellValue('I' . $r, '');
-        $sheet->setCellValue('J' . $r, '');
+        $sheet->setCellValueExplicit('I' . $r, $totals['margin_pct_thd_omset'], PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->getStyle('I' . $r)->getNumberFormat()->setFormatCode('0.0%');
 
-        $sheet->getStyle('A' . $r . ':J' . $r)->applyFromArray($rowTotalStyle);
+        $sheet->setCellValue('J' . $r, '');
+        $sheet->setCellValue('K' . $r, '');
+
+        $sheet->getStyle('A' . $r . ':K' . $r)->applyFromArray($rowTotalStyle);
 
         // ===== KETERANGAN =====
         $r += 2;
-        // Catatan: setiap baris keterangan di-merge A:J agar tidak ikut dihitung
+        // Catatan: setiap baris keterangan di-merge A:K agar tidak ikut dihitung
         // oleh auto-size kolom A (kalau tidak di-merge, teks panjang ini akan
         // membuat kolom "No" ikut melebar mengikuti panjang kalimat).
         $keteranganLines = [
             'Keterangan:',
             '1. Target Omset dan Realisasi Omset diambil dari Report Penjualan per Sales.',
             '2. % Ach Omset = Realisasi Omset / Target Omset.',
-            '3. Target Margin % diambil dari Master Target Margin per Sales.',
-            '4. Realisasi Margin (Rp) = Realisasi Omset (Revenue) - HPP (Harga Pokok Penjualan/COGS) aktual per baris invoice.',
-            '5. Actual Margin (%) = Realisasi Margin (Rp) / Realisasi Omset (Rp).',
-            '6. % Ach Margin = Actual Margin (%) / Target Margin %.',
-            '7. Status: >=100% Tercapai, 90-99,9% Mendekati Target, <90% Belum Tercapai.',
+            '3. DPP = Realisasi Omset (Rp) / 1,11.',
+            '4. Target Margin % diambil dari Master Target Margin per Sales.',
+            '5. Realisasi Margin (Rp) = Realisasi Omset (Revenue) - HPP (Harga Pokok Penjualan/COGS) aktual per baris invoice.',
+            '6. Actual Margin (%) = Realisasi Margin (Rp) / Realisasi Omset (Rp).',
+            '7. % Ach Margin = Actual Margin (%) / Target Margin %.',
+            '8. Status: >=100% Tercapai, 90-99,9% Mendekati Target, <90% Belum Tercapai.',
         ];
 
         foreach ($keteranganLines as $i => $line) {
             $sheet->setCellValue('A' . $r, $line);
-            $sheet->mergeCells('A' . $r . ':J' . $r);
+            $sheet->mergeCells('A' . $r . ':K' . $r);
             if ($i === 0) {
                 $sheet->getStyle('A' . $r)->getFont()->setBold(true);
             }
