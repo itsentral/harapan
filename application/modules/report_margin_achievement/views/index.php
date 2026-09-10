@@ -98,8 +98,8 @@
                 <li>% Ach Omset = Realisasi Omset / Target Omset.</li>
                 <li>DPP = Realisasi Omset (Rp) / 1,11.</li>
                 <li>Target Margin % diambil dari Master Target Margin per Sales.</li>
-                <li>Realisasi Margin (Rp) = Realisasi Omset (Revenue) - HPP (Harga Pokok Penjualan/COGS) aktual per baris invoice.</li>
-                <li>Actual Margin (%) = Realisasi Margin (Rp) / Realisasi Omset (Rp).</li>
+                <li>Actual Margin (%) = (Realisasi Omset (Revenue) - HPP (Harga Pokok Penjualan/COGS)) aktual per baris invoice / Realisasi Omset.</li>
+                <li>Realisasi Margin (Rp) = DPP x Actual Margin (%).</li>
                 <li>% Ach Margin = Actual Margin (%) / Target Margin %.</li>
                 <li>Status: &gt;=100% Tercapai, 90-99,9% Mendekati Target, &lt;90% Belum Tercapai.</li>
             </ol>
