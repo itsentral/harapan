@@ -111,6 +111,18 @@
                                         </th>
                                         <th colspan="4"></th>
                                     </tr>
+                                    <tr class="bg-warning" id="rowSelisihKurang" hidden>
+                                        <th colspan="4" class="text-right">Selisih Kurang</th>
+                                        <th>
+                                            <input type="text" name="selisih_kurang" class="form-control input-sm moneyFormat text-right" id="selisihKurang" readonly>
+                                        </th>
+                                        <th colspan="4" class="text-left">
+                                            <label class="text-nowrap" style="font-weight:normal;" id="labelBulatkanKurang" hidden>
+                                                <input type="checkbox" id="bulatkanKurang"> Bulatkan kekurangan (maks 1.000)
+                                            </label>
+                                            <input type="hidden" name="pembulatan_kurang" id="pembulatanKurang" value="0">
+                                        </th>
+                                    </tr>
                                     <tr class="bg-info" hidden>
                                         <th colspan="4" class="text-right">Biaya Administrasi</th>
                                         <th>
@@ -634,6 +646,11 @@
             generateJurnal();
         });
 
+        // Bulatkan kekurangan: hitung ulang alokasi & jurnal
+        $(document).on('change', '#bulatkanKurang', function() {
+            updateInvoiceTotals();
+        });
+
         // Handler tombol lihat history credit note
         $(document).on('click', '.btn-lihat-cn', function() {
             const id_invoice = $(this).data('invoice');
@@ -842,6 +859,44 @@
             totalKredit += pembulatan;
         }
 
+        // =========================
+        // BIAYA PEMBULATAN (KEKURANGAN BAYAR)
+        // =========================
+        // Saat kurang bayar dan user memilih dibulatkan, kekurangan dibebankan
+        // sebagai Biaya Pembulatan di sisi DEBET agar jurnal tetap balance.
+        let pembulatanKurang = parseFloat($('#pembulatanKurang').val()) || 0;
+
+        if (pembulatanKurang > 0) {
+            let invoiceListK = [];
+            $('#tableInv tbody tr').each(function() {
+                const $row = $(this);
+                const invoiceRaw = $row.find('td:eq(1)').clone();
+                invoiceRaw.find('small, br').remove();
+                const inv = invoiceRaw.text().trim();
+                if (inv) invoiceListK.push(inv);
+            });
+            const keteranganPembulatanK = invoiceListK.length > 0 ?
+                'Biaya Pembulatan (kurang bayar) Invoice ' + invoiceListK.join(', ') :
+                'Biaya Pembulatan (kurang bayar)';
+
+            jurnalHTML += `
+        <tr>
+            <td><input type="date" name="tgl_jurnal[]" value="${today}" class="form-control" readonly></td>
+            <td><input type="text" name="type[]" value="BUM" class="form-control" readonly></td>
+            <td><input type="text" name="no_coa[]" value="7201-01-06" class="form-control" readonly></td>
+            <td><input type="text" name="nama_coa[]" value="Biaya Pembulatan" class="form-control" readonly></td>
+            <td><textarea name="keterangan[]" class="form-control" readonly>${keteranganPembulatanK}</textarea></td>
+
+            <td><input type="hidden" name="debet[]" value="${pembulatanKurang}">
+            <input type="text" value="${number_format(pembulatanKurang,2)}" class="form-control text-right" readonly></td>
+
+            <td><input type="hidden" name="kredit[]" value="0">
+            <input type="text" value="0" class="form-control text-right" readonly></td>
+        </tr>
+        `;
+            totalDebit += pembulatanKurang;
+        }
+
         $('#tableJurnal tbody').html(jurnalHTML);
 
         $('#totalDebit').val(number_format(totalDebit, 2));
@@ -858,12 +913,23 @@
         }
     }
 
+    // Batas maksimal nilai yang boleh dibulatkan saat kurang bayar
+    const MAX_PEMBULATAN_KURANG = 1000;
+
     function updateInvoiceTotals() {
         let totalInvoice = 0;
         let totalBayarInvoice = 0;
         let totalBank = parseFloat($('#totalBank').val().replace(/,/g, '')) || 0;
         let sisaBank = totalBank;
         let bank = $('#bank').val();
+
+        // Simpan referensi baris terakhir yang masih kurang bayar (sisa > 0)
+        let $lastUnderpaidRow = null;
+        let lastUnderpaidSisa = 0;
+        let lastUnderpaidBayar = 0;
+
+        // Reset penanda pembulatan per baris terlebih dahulu
+        $('#tableInv tbody tr').find('input[name*="[pembulatan]"]').val(0);
 
         // Loop per baris invoice
         $('#tableInv tbody tr').each(function() {
@@ -890,7 +956,75 @@
             $row.find('.total_bayar').val(number_format(bayar, 2));
             // Set Sisa Invoice
             $row.find('.sisa_invoice').val(number_format(sisa, 2));
+
+            // Catat baris terakhir yang masih kurang (dipakai untuk pembulatan kekurangan)
+            if (sisa > 0.001) {
+                $lastUnderpaidRow = $row;
+                lastUnderpaidSisa = sisa;
+                lastUnderpaidBayar = bayar;
+            }
         });
+
+        // =========================
+        // PEMBULATAN KEKURANGAN
+        // =========================
+        // Selisih kurang = total tagihan - total yang terbayar dari bank
+        const selisihKurang = totalInvoice - totalBayarInvoice;
+        let pembulatanKurang = 0;
+
+        // Tampilkan baris "Selisih Kurang" hanya saat memang kurang bayar
+        if (selisihKurang > 0.001) {
+            $('#rowSelisihKurang').removeAttr('hidden');
+            $('#selisihKurang').val(number_format(selisihKurang, 2));
+
+            // Checkbox hanya boleh dipakai jika kekurangan <= batas maksimal
+            if (selisihKurang <= MAX_PEMBULATAN_KURANG + 0.001) {
+                $('#labelBulatkanKurang').removeAttr('hidden');
+                $('#bulatkanKurang').prop('disabled', false);
+            } else {
+                $('#labelBulatkanKurang').attr('hidden', true);
+                $('#bulatkanKurang').prop('checked', false).prop('disabled', true);
+            }
+        } else {
+            $('#rowSelisihKurang').attr('hidden', true);
+            $('#labelBulatkanKurang').attr('hidden', true);
+            $('#selisihKurang').val(number_format(0, 2));
+            $('#bulatkanKurang').prop('checked', false);
+        }
+
+        // Jika user memilih bulatkan kekurangan dan masih dalam batas,
+        // bebankan kekurangan ke faktur TERAKHIR yang masih kurang bayar.
+        if (
+            $('#bulatkanKurang').is(':checked') &&
+            selisihKurang > 0.001 &&
+            selisihKurang <= MAX_PEMBULATAN_KURANG + 0.001 &&
+            $lastUnderpaidRow
+        ) {
+            pembulatanKurang = selisihKurang;
+
+            // Faktur terakhir dianggap lunas: total bayar ditambah kekurangan, sisa jadi 0
+            const bayarBaru = lastUnderpaidBayar + pembulatanKurang;
+            $lastUnderpaidRow.find('.total_bayar').val(number_format(bayarBaru, 2));
+            $lastUnderpaidRow.find('.sisa_invoice').val(number_format(0, 2));
+
+            // Simpan nilai pembulatan pada baris tersebut (untuk server-side)
+            let $pembInput = $lastUnderpaidRow.find('input[name*="[pembulatan]"]');
+            if ($pembInput.length === 0) {
+                // Buat hidden input pembulatan bila belum ada, gunakan index dari input id_invoice
+                const idInvName = $lastUnderpaidRow.find('input[name*="[id_invoice]"]').attr('name') || '';
+                const m = idInvName.match(/detail\[(\d+)\]/);
+                const idx = m ? m[1] : 0;
+                $lastUnderpaidRow.find('td:last').append(
+                    '<input type="hidden" name="detail[' + idx + '][pembulatan]" value="' + pembulatanKurang + '">'
+                );
+            } else {
+                $pembInput.val(pembulatanKurang);
+            }
+
+            // totalBayarInvoice tidak diubah: bank tetap segitu, kekurangan ditutup pembulatan
+        }
+
+        $('#pembulatanKurang').val(pembulatanKurang);
 
         $('#totalInvoice').val(number_format(totalInvoice, 2));
         $('#totalBayarInvoice').val(number_format(totalBayarInvoice, 2));
@@ -906,9 +1040,11 @@
         const biayaAdm = parseFloat($('#biayaAdm').val().replace(/,/g, '')) || 0;
         const lebihBayar = parseFloat($('#lebihBayar').val().replace(/,/g, '')) || 0;
         const pembulatan = parseFloat($('#pembulatan').val().replace(/,/g, '')) || 0;
+        const pembulatanKurang = parseFloat($('#pembulatanKurang').val()) || 0;
 
         const selisih = totalBank - totalBayarInvoice;
-        const kontrol = selisih + biayaAdm - lebihBayar - pembulatan;
+        // pembulatanKurang menutup kekurangan, jadi ditambahkan agar kontrol kembali 0
+        const kontrol = selisih + biayaAdm - lebihBayar - pembulatan + pembulatanKurang;
 
         $('#selisih').val(number_format(selisih, 2));
         $('#kontrol').val(number_format(kontrol, 2));

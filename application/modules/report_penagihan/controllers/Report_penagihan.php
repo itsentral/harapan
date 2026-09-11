@@ -24,7 +24,7 @@ class Report_penagihan extends Admin_Controller
     public function index()
     {
         $this->template->page_icon('fa fa-credit-card');
-        $this->template->title('Report Rencana Penagihan vs Realisasi Tagihan');
+        $this->template->title('Report Target Penagihan vs Realisasi Tagihan');
 
         $tahun = $this->input->get('tahun') ?? date('Y');
         $bulan_sekarang = (int) date('n'); // bulan saat ini (1-12)
@@ -34,48 +34,9 @@ class Report_penagihan extends Admin_Controller
         $sales = $this->db->where('department', '2')->get('employee')->result_array();
         $bulan = $this->db->order_by('bulan_no', 'asc')->get('cr_bulan')->result_array();
 
-        // 2. Query Target Tagihan (Rencana Penagihan)
-        // Target = tagihan yang sudah jatuh tempo bulan sebelumnya + akan jatuh tempo bulan berjalan
-        // Artinya: semua invoice yang jatuh tempo <= akhir bulan tersebut dan belum lunas
-        // DENGAN CUTOFF: Sisa piutang dihitung sampai akhir bulan sebelumnya (tidak termasuk pembayaran bulan berjalan)
-        $rekap_target = [];
-        foreach ($sales as $s) {
-            for ($m = 1; $m <= 12; $m++) {
-                // Hanya isi sampai bulan berjalan (jika tahun yang dipilih = tahun sekarang)
-                if ($tahun == $tahun_sekarang && $m > $bulan_sekarang) {
-                    continue;
-                }
-
-                // Target tagihan = invoice yang jatuh tempo <= akhir bulan ini
-                // (mencakup yang sudah jatuh tempo di bulan-bulan sebelumnya + yang jatuh tempo di bulan ini)
-                $akhir_bulan = date('Y-m-t', strtotime("$tahun-$m-01"));
-
-                // Cutoff untuk perhitungan sisa piutang: sampai akhir bulan sebelumnya
-                $cutoff_date = date('Y-m-t', strtotime("$tahun-$m-01 -1 month"));
-
-                // Query dengan subquery untuk hitung sisa piutang dengan cutoff
-                $this->db->select("
-                    SUM(
-                        a.grand_total - COALESCE((
-                            SELECT SUM(pd2.total_bayar_idr)
-                            FROM tr_invoice_payment_detail pd2
-                            JOIN tr_invoice_payment p2 ON p2.kd_pembayaran = pd2.kd_pembayaran
-                            WHERE pd2.no_invoice = a.id_invoice
-                            AND p2.tgl_pembayaran <= '$cutoff_date'
-                        ), 0)
-                    ) as target_tagihan
-                ", false);
-                $this->db->from('tr_invoice_sales a');
-                $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
-                $this->db->join('employee c', 'b.id_karyawan = c.id');
-                $this->db->where('c.id', $s['id']);
-                $this->db->where('a.jatuh_tempo <=', $akhir_bulan);
-                $this->db->where('a.piutang >', 0);
-                $result = $this->db->get()->row_array();
-
-                $rekap_target[$s['id']][$m] = (float)($result['target_tagihan'] ?? 0);
-            }
-        }
+        // 2. Target Tagihan (Target Penagihan) - BEKU / historis
+        // Dihitung efisien via bulk-load + agregasi PHP (lihat hitung_rekap_target()).
+        $rekap_target = $this->hitung_rekap_target($tahun, $tahun_sekarang, $bulan_sekarang);
 
         // 3. Query Realisasi Tagihan (pembayaran yang diterima pada bulan tersebut, berdasarkan tanggal pembayaran)
         $this->db->select("
@@ -120,40 +81,8 @@ class Report_penagihan extends Admin_Controller
         $sales = $this->db->where('department', '2')->get('employee')->result_array();
         $bulan = $this->db->order_by('bulan_no', 'asc')->get('cr_bulan')->result_array();
 
-        // 2. Query Target Tagihan (Rencana Penagihan) dengan cutoff
-        $rekap_target = [];
-        foreach ($sales as $s) {
-            for ($m = 1; $m <= 12; $m++) {
-                if ($tahun == $tahun_sekarang && $m > $bulan_sekarang) {
-                    continue;
-                }
-                $akhir_bulan = date('Y-m-t', strtotime("$tahun-$m-01"));
-
-                // Cutoff untuk perhitungan sisa piutang: sampai akhir bulan sebelumnya
-                $cutoff_date = date('Y-m-t', strtotime("$tahun-$m-01 -1 month"));
-
-                $this->db->select("
-                    SUM(
-                        a.grand_total - COALESCE((
-                            SELECT SUM(pd2.total_bayar_idr)
-                            FROM tr_invoice_payment_detail pd2
-                            JOIN tr_invoice_payment p2 ON p2.kd_pembayaran = pd2.kd_pembayaran
-                            WHERE pd2.no_invoice = a.id_invoice
-                            AND p2.tgl_pembayaran <= '$cutoff_date'
-                        ), 0)
-                    ) as target_tagihan
-                ", false);
-                $this->db->from('tr_invoice_sales a');
-                $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
-                $this->db->join('employee c', 'b.id_karyawan = c.id');
-                $this->db->where('c.id', $s['id']);
-                $this->db->where('a.jatuh_tempo <=', $akhir_bulan);
-                $this->db->where('a.piutang >', 0);
-                $result = $this->db->get()->row_array();
-
-                $rekap_target[$s['id']][$m] = (float)($result['target_tagihan'] ?? 0);
-            }
-        }
+        // 2. Target Tagihan (Target Penagihan) - BEKU / historis, via helper efisien
+        $rekap_target = $this->hitung_rekap_target($tahun, $tahun_sekarang, $bulan_sekarang);
 
         // 3. Query Realisasi Tagihan (pembayaran yang diterima pada bulan tersebut, berdasarkan tanggal pembayaran)
         $this->db->select("
@@ -187,7 +116,7 @@ class Report_penagihan extends Admin_Controller
         $xls   = new PHPExcel();
         $sheet = $xls->getActiveSheet();
 
-        $sheet->setCellValue('A1', 'REPORT RENCANA PENAGIHAN VS REALISASI TAGIHAN - TAHUN ' . $tahun);
+        $sheet->setCellValue('A1', 'REPORT TARGET PENAGIHAN VS REALISASI TAGIHAN - TAHUN ' . $tahun);
         $sheet->mergeCells('A1:O2');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
@@ -220,8 +149,8 @@ class Report_penagihan extends Admin_Controller
             $sheet->mergeCells('A' . $r . ':A' . ($r + 1));
             $sheet->getStyle('A' . $r)->getAlignment()->setVertical(PHPExcel_Style_Alignment::VERTICAL_CENTER);
 
-            // Baris Rencana Penagihan (Target)
-            $sheet->setCellValue('B' . $r, 'Rencana Penagihan');
+            // Baris Target Penagihan (Target)
+            $sheet->setCellValue('B' . $r, 'Target Penagihan');
             $row_t_target = 0;
             $c = 'C';
             foreach ($bulan as $b) {
@@ -274,7 +203,7 @@ class Report_penagihan extends Admin_Controller
         $sheet->mergeCells('A' . $r . ':A' . ($r + 1));
         $sheet->getStyle('A' . $r . ':O' . ($r + 1))->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
 
-        $sheet->setCellValue('B' . $r, 'Rencana Penagihan');
+        $sheet->setCellValue('B' . $r, 'Target Penagihan');
         $c = 'C';
         $total_cabang_t = 0;
         foreach ($bulan as $b) {
@@ -326,10 +255,96 @@ class Report_penagihan extends Admin_Controller
             ob_end_clean();
         }
         header('Content-Type: application/vnd.ms-excel');
-        header('Content-Disposition: attachment;filename="Report_Rencana_Penagihan_' . $tahun . '.xls"');
+        header('Content-Disposition: attachment;filename="Report_Target_Penagihan_' . $tahun . '.xls"');
         header('Cache-Control: max-age=0');
         $writer->save('php://output');
         exit;
+    }
+
+    /**
+     * Hitung rekap Target Penagihan (BEKU / historis) untuk semua sales x 12 bulan.
+     *
+     * Definisi target bulan M untuk seorang sales:
+     *   Jumlah sisa piutang dari setiap invoice miliknya yang jatuh tempo <= akhir bulan M,
+     *   dihitung PER KONDISI CUTOFF (akhir bulan M-1) = grand_total dikurangi total pembayaran
+     *   yang diterima s/d akhir bulan M-1. Hanya invoice dengan sisa > 0 pada cutoff yang dihitung.
+     *
+     * Angka ini BEKU: tidak berubah walau invoice sudah lunas hari ini, karena tidak
+     * bergantung pada kolom a.piutang yang live.
+     *
+     * Implementasi: bulk-load semua invoice + pembayaran (dikelompok per bulan) dalam 2 query,
+     * lalu agregasi di PHP. Jauh lebih cepat daripada correlated subquery per sales per bulan.
+     *
+     * @param  int|string $tahun          Tahun laporan
+     * @param  int        $tahun_sekarang Tahun berjalan
+     * @param  int        $bulan_sekarang Bulan berjalan (1-12)
+     * @return array      rekap_target[id_sales][bulan] = (float) target
+     */
+    private function hitung_rekap_target($tahun, $tahun_sekarang, $bulan_sekarang)
+    {
+        // 1) Bulk-load semua invoice milik sales (department 2)
+        $this->db->select('a.id_invoice, c.id as id_sales, a.grand_total, a.jatuh_tempo', false);
+        $this->db->from('tr_invoice_sales a');
+        $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
+        $this->db->join('employee c', 'b.id_karyawan = c.id');
+        $this->db->where('c.department', '2');
+        $invoices = $this->db->get()->result_array();
+
+        // 2) Bulk-load total pembayaran per invoice per bulan (YYYY-MM)
+        $this->db->select("pd.no_invoice, DATE_FORMAT(p.tgl_pembayaran, '%Y-%m') as ym, SUM(pd.total_bayar_idr) as amt", false);
+        $this->db->from('tr_invoice_payment_detail pd');
+        $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = pd.kd_pembayaran');
+        $this->db->group_by("pd.no_invoice, DATE_FORMAT(p.tgl_pembayaran, '%Y-%m')");
+        $pay_rows = $this->db->get()->result_array();
+
+        // Susun map pembayaran: pay[id_invoice][ym] = jumlah
+        $pay = [];
+        foreach ($pay_rows as $pr) {
+            $pay[$pr['no_invoice']][$pr['ym']] = (float)$pr['amt'];
+        }
+
+        // 3) Agregasi target per sales per bulan di PHP
+        $rekap_target = [];
+        for ($m = 1; $m <= 12; $m++) {
+            // Lewati bulan yang belum terjadi (untuk tahun berjalan)
+            if ($tahun == $tahun_sekarang && $m > $bulan_sekarang) {
+                continue;
+            }
+
+            $akhir_bulan = date('Y-m-t', strtotime("$tahun-$m-01"));
+            // Cutoff = pembayaran diperhitungkan sampai akhir bulan sebelumnya (ym <= cutoff_ym)
+            $cutoff_ym   = date('Y-m', strtotime("$tahun-$m-01 -1 month"));
+
+            foreach ($invoices as $inv) {
+                // Invoice harus jatuh tempo <= akhir bulan M
+                if (empty($inv['jatuh_tempo']) || $inv['jatuh_tempo'] > $akhir_bulan) {
+                    continue;
+                }
+
+                $id  = $inv['id_invoice'];
+                $sid = $inv['id_sales'];
+
+                // Total pembayaran yang diterima sampai cutoff
+                $bayar_cutoff = 0.0;
+                if (!empty($pay[$id])) {
+                    foreach ($pay[$id] as $ym => $amt) {
+                        if ($ym <= $cutoff_ym) {
+                            $bayar_cutoff += $amt;
+                        }
+                    }
+                }
+
+                $sisa = (float)$inv['grand_total'] - $bayar_cutoff;
+                if ($sisa > 0) {
+                    if (!isset($rekap_target[$sid][$m])) {
+                        $rekap_target[$sid][$m] = 0.0;
+                    }
+                    $rekap_target[$sid][$m] += $sisa;
+                }
+            }
+        }
+
+        return $rekap_target;
     }
 
     /**
@@ -494,7 +509,7 @@ class Report_penagihan extends Admin_Controller
 
         // Query data detail berdasarkan tipe
         if ($tipe == 'target') {
-            // Rencana Penagihan: invoice yang jatuh tempo <= akhir bulan dan masih punya piutang
+            // Target Penagihan: invoice yang jatuh tempo <= akhir bulan dan masih punya sisa piutang pada cutoff
             $akhir_bulan = date('Y-m-t', strtotime("$tahun-$bulan-01"));
 
             // Tambahkan subquery untuk hitung sisa piutang dengan cutoff
@@ -524,14 +539,16 @@ class Report_penagihan extends Admin_Controller
             $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = pd.kd_pembayaran', 'left');
             $this->db->where('b.id_karyawan', $id_sales);
             $this->db->where('a.jatuh_tempo <=', $akhir_bulan);
-            $this->db->where('a.piutang >', 0);
+            // Target Penagihan (BEKU): saring berdasarkan sisa piutang pada kondisi cutoff,
+            // bukan kolom a.piutang yang live, agar konsisten dengan angka di report.
+            $this->db->having('sisa_piutang_cutoff >', 0);
             $this->db->order_by('a.id_invoice', 'ASC');
             $this->db->order_by('p.tgl_pembayaran', 'ASC');
             $query = $this->db->get();
             $data_detail = $query ? $query->result_array() : [];
 
-            $judul = 'Detail Rencana Penagihan';
-            $filename = 'Detail_Rencana_Penagihan_' . str_replace(' ', '_', $nama_sales) . '_' . $nama_bulan . '_' . $tahun . '.xls';
+            $judul = 'Detail Target Penagihan';
+            $filename = 'Detail_Target_Penagihan_' . str_replace(' ', '_', $nama_sales) . '_' . $nama_bulan . '_' . $tahun . '.xls';
         } else {
             // Realisasi Tagihan: pembayaran yang diterima pada bulan tersebut, berdasarkan tanggal pembayaran
             $this->db->select("
@@ -671,7 +688,7 @@ class Report_penagihan extends Admin_Controller
             $status_ontime = '';
 
             if ($tipe == 'target') {
-                // Untuk Rencana Penagihan: bandingkan jatuh tempo vs cutoff date
+                // Untuk Target Penagihan: bandingkan jatuh tempo vs cutoff date
                 if (!empty($row['jatuh_tempo'])) {
                     $date_jatuh_tempo = new DateTime($row['jatuh_tempo']);
                     $date_cutoff = new DateTime($cutoff_date);
