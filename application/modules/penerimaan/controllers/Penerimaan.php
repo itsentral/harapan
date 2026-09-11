@@ -153,6 +153,18 @@ class Penerimaan extends Admin_Controller
             $biaya_admin    = str_replace(',', '', ($post['biaya_adm']));
             $lebih_bayar    = str_replace(',', '', ($post['lebih_bayar']));
 
+            // Pembulatan kekurangan bayar (kurang bayar yang dibulatkan jadi lunas)
+            $pembulatan_kurang = isset($post['pembulatan_kurang'])
+                ? (float) str_replace(',', '', $post['pembulatan_kurang'])
+                : 0;
+
+            // Batas maksimal pembulatan kekurangan (server-side guard, jangan percaya form saja)
+            $MAX_PEMBULATAN_KURANG = 1000;
+            if ($pembulatan_kurang < 0) $pembulatan_kurang = 0;
+            if ($pembulatan_kurang > $MAX_PEMBULATAN_KURANG) {
+                throw new Exception("Pembulatan kekurangan (" . number_format($pembulatan_kurang, 2) . ") melebihi batas maksimal " . number_format($MAX_PEMBULATAN_KURANG, 2) . ".");
+            }
+
             $kd_pembayaran  = $this->penerimaan_model->generate_nopn($tgl_pembayaran);
 
             $customer = $this->db
@@ -173,6 +185,7 @@ class Penerimaan extends Admin_Controller
                 'jumlah_pembayaran_idr' => $total_terima,
                 'biaya_admin_idr'       => $biaya_admin,
                 'lebih_bayar'           => $lebih_bayar,
+                'pembulatan_kurang_idr' => $pembulatan_kurang,
                 'keterangan'            => $keterangan,
                 'created_by'            => $this->auth->user_id(),
                 'created_on'            => date('Y-m-d H:i:s'),
@@ -203,6 +216,17 @@ class Penerimaan extends Admin_Controller
                 $sisa_invoice = str_replace(',', '', ($row['sisa_invoice']));
                 $total_cn     = isset($row['total_cn']) ? (float)$row['total_cn'] : 0;
 
+                // Pembulatan kekurangan per baris (baris ini dibebankan biaya pembulatan)
+                $pembulatan_row = isset($row['pembulatan'])
+                    ? (float) str_replace(',', '', $row['pembulatan'])
+                    : 0;
+                if ($pembulatan_row < 0) $pembulatan_row = 0;
+
+                // View menaikkan total_bayar baris terakhir sebesar pembulatan agar lunas.
+                // Simpan hanya uang bank riil di total_bayar_idr, pisahkan pembulatan.
+                $total_bayar_riil = (float) $total_bayar - $pembulatan_row;
+                if ($total_bayar_riil < 0) $total_bayar_riil = 0;
+
                 $data_detail = [
                     'kd_pembayaran'      => $kd_pembayaran,
                     'nm_customer'        => $customer->name_customer,
@@ -213,9 +237,10 @@ class Penerimaan extends Admin_Controller
                     'tgl_invoice'        => date('Y-m-d', strtotime($invoice->created_on)),
                     'total_ppn_idr'      => $invoice->nilai_ppn,
                     'total_invoice_idr'  => $tagihan,
-                    'total_bayar_idr'    => $total_bayar,
+                    'total_bayar_idr'    => $total_bayar_riil,
                     'sisa_invoice_idr'   => $sisa_invoice,
                     'total_cn_idr'       => $total_cn,
+                    'pembulatan_idr'     => $pembulatan_row,
                     'created_by'         => $this->auth->user_id(),
                     'created_on'         => date('Y-m-d H:i:s'),
                     'tipe_bayar'         => "BANK"
@@ -247,13 +272,19 @@ class Penerimaan extends Admin_Controller
                     ->where('no_invoice', $row['id_invoice'])
                     ->get()->row()->total;
 
-                // Sisa piutang = tagihan asal - total bayar - total CN yang sudah dipakai
+                // Sisa piutang = tagihan asal - total bayar - total CN - total pembulatan
                 $total_cn_used = $this->db->select('COALESCE(SUM(total_cn_idr),0) AS total', false)
                     ->from('tr_invoice_payment_detail')
                     ->where('no_invoice', $row['id_invoice'])
                     ->get()->row()->total;
 
-                $sisa_piutang = (float)$invoice->grand_total - (float)$sum - (float)$total_cn_used;
+                // Pembulatan kekurangan yang membebaskan sisa piutang
+                $total_pembulatan = $this->db->select('COALESCE(SUM(pembulatan_idr),0) AS total', false)
+                    ->from('tr_invoice_payment_detail')
+                    ->where('no_invoice', $row['id_invoice'])
+                    ->get()->row()->total;
+
+                $sisa_piutang = (float)$invoice->grand_total - (float)$sum - (float)$total_cn_used - (float)$total_pembulatan;
                 if ($sisa_piutang < 0) $sisa_piutang = 0;
 
                 $this->db->set('total_bayar', $sum, false);
@@ -368,11 +399,18 @@ class Penerimaan extends Admin_Controller
 
         // INSERT KARTU PIUTANG
         foreach ($detail as $row) {
-            $total_bayar  = str_replace(',', '', ($row['total_bayar']));
-            $total_cn     = isset($row['total_cn']) ? (float)$row['total_cn'] : 0;
+            $total_bayar     = (float) str_replace(',', '', ($row['total_bayar']));
+            $total_cn        = isset($row['total_cn']) ? (float)$row['total_cn'] : 0;
+            $pembulatan_row  = isset($row['pembulatan']) ? (float) str_replace(',', '', $row['pembulatan']) : 0;
+            if ($pembulatan_row < 0) $pembulatan_row = 0;
 
-            // Kredit piutang dari pembayaran bank
-            if ($total_bayar > 0) {
+            // total_bayar dari form sudah termasuk pembulatan pada baris terakhir.
+            // Pisahkan agar kartu piutang: uang bank riil vs pembulatan.
+            $bayar_bank_riil = $total_bayar - $pembulatan_row;
+            if ($bayar_bank_riil < 0) $bayar_bank_riil = 0;
+
+            // Kredit piutang dari pembayaran bank (uang riil)
+            if ($bayar_bank_riil > 0) {
                 $ket = 'PEMBAYARAN PIUTANG INV ' . $row['id_invoice'] . ' A/N ' . $customer->name_customer;
 
                 $this->db->insert('tr_kartu_piutang', [
@@ -383,7 +421,25 @@ class Penerimaan extends Admin_Controller
                     'keterangan'    => $ket,
                     'no_reff'       => $row['id_invoice'],
                     'debet'         => 0,
-                    'kredit'        => $total_bayar,
+                    'kredit'        => $bayar_bank_riil,
+                    'id_supplier'   => $post['id_customer'],
+                    'nama_supplier' => $customer->name_customer,
+                ]);
+            }
+
+            // Kredit piutang dari pembulatan kekurangan (menutup sisa agar lunas)
+            if ($pembulatan_row > 0) {
+                $ket_pemb = 'PEMBULATAN KEKURANGAN INV ' . $row['id_invoice'] . ' A/N ' . $customer->name_customer;
+
+                $this->db->insert('tr_kartu_piutang', [
+                    'tipe'          => 'BUM',
+                    'nomor'         => $Nomor_BUM,
+                    'tanggal'       => $post['tgl_pembayaran'],
+                    'no_perkiraan'  => '1102-01-01',
+                    'keterangan'    => $ket_pemb,
+                    'no_reff'       => $row['id_invoice'],
+                    'debet'         => 0,
+                    'kredit'        => $pembulatan_row,
                     'id_supplier'   => $post['id_customer'],
                     'nama_supplier' => $customer->name_customer,
                 ]);
