@@ -47,6 +47,9 @@
                         <th colspan='3'>AWAL</th>
                         <th colspan='2'>TRANSAKSI</th>
                         <th colspan='3'>AKHIR</th>
+                        <?php if (!empty($is_admin)): ?>
+                            <th rowspan='2'>Harga Beli</th>
+                        <?php endif; ?>
 
                     </tr>
                     <tr>
