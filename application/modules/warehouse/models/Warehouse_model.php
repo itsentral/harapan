@@ -201,6 +201,8 @@ class Warehouse_model extends BF_Model
         $totalFiltered = $fetch['totalFiltered'];
         $query = $fetch['query'];
 
+        $is_admin = $this->auth->is_admin();
+
         $data = [];
         $urut1 = 1;
 
@@ -222,6 +224,12 @@ class Warehouse_model extends BF_Model
             $nestedData[] = number_format($row['qty_akhir']);            // AKHIR: stock
             $nestedData[] = number_format($row['qty_book_akhir']);       // AKHIR: booking
             $nestedData[] = number_format($row['qty_free_akhir']);       // AKHIR: free stock
+
+            // Harga Beli hanya untuk admin
+            if ($is_admin) {
+                $harga_stok = isset($row['harga_stok']) ? floatval($row['harga_stok']) : 0;
+                $nestedData[] = "<div align='right'>" . number_format($harga_stok) . "</div>";
+            }
 
             $data[] = $nestedData;
             $urut1++;

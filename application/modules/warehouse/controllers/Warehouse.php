@@ -38,6 +38,7 @@ class Warehouse extends Admin_Controller
     {
         $this->template->title('Kartu Stok');
         $this->template->page_icon('fa fa-file');
+        $this->template->set('is_admin', $this->auth->is_admin());
         $this->template->render('kartu_stok');
     }
 
@@ -128,6 +129,7 @@ class Warehouse extends Admin_Controller
 
     public function export_excel_kartu_stok()
     {
+        $is_admin = $this->auth->is_admin();
         $start = $this->input->get('start_date', true);
         $end   = $this->input->get('end_date', true);
 
@@ -154,7 +156,7 @@ class Warehouse extends Admin_Controller
 
         $periode = ($start && $end) ? $start . ' s/d ' . $end : 'Semua Data';
         $sheet->setCellValue('A1', 'REPORT KARTU STOK - ' . $periode);
-        $sheet->mergeCells('A1:N2');
+        $sheet->mergeCells($is_admin ? 'A1:O2' : 'A1:N2');
 
         $headers = [
             'A' => '#',
@@ -172,6 +174,9 @@ class Warehouse extends Admin_Controller
             'M' => 'Booking Akhir',
             'N' => 'Free Stock Akhir',
         ];
+        if ($is_admin) {
+            $headers['O'] = 'Harga Beli';
+        }
         $rowHeader = 4;
         foreach ($headers as $col => $label) {
             $sheet->setCellValue($col . $rowHeader, $label);
@@ -204,6 +209,9 @@ class Warehouse extends Admin_Controller
             $sheet->setCellValueExplicit('L' . $r, (float)$row->qty_akhir, PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->setCellValueExplicit('M' . $r, (float)$row->qty_book_akhir, PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->setCellValueExplicit('N' . $r, (float)$row->qty_free_akhir, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            if ($is_admin) {
+                $sheet->setCellValueExplicit('O' . $r, (float)(isset($row->harga_stok) ? $row->harga_stok : 0), PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            }
             $r++;
         }
 
