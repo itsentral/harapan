@@ -41,23 +41,24 @@
                     ?>
                         <tr>
                             <td rowspan="2" style="vertical-align:middle; font-weight:bold;"><?= ucwords($s['nm_karyawan']) ?></td>
-                            <td>Rencana Penagihan</td>
+                            <td>Target Penagihan</td>
                             <?php foreach ($bulan as $b):
                                 $bln_no = (int)$b['bulan_no'];
                                 if ($tahun_pilih == $tahun_sekarang && $bln_no > $bulan_sekarang):
                             ?>
-                                <td class="text-center text-muted">-</td>
-                            <?php else:
-                                $val = $rekap_target[$s['id']][$bln_no] ?? 0;
-                                $row_t_target += $val;
-                                $grand_total_target[$bln_no] += $val;
-                            ?>
-                                <td class="text-right">
-                                    <a href="<?= site_url('report_penagihan/export_detail?tahun=' . $tahun_pilih . '&bulan=' . $bln_no . '&id_sales=' . $s['id'] . '&tipe=target') ?>" title="Download detail Rencana Penagihan" style="color:inherit; text-decoration:underline; cursor:pointer;">
-                                        <?= number_format($val) ?>
-                                    </a>
-                                </td>
-                            <?php endif; endforeach; ?>
+                                    <td class="text-center text-muted">-</td>
+                                <?php else:
+                                    $val = $rekap_target[$s['id']][$bln_no] ?? 0;
+                                    $row_t_target += $val;
+                                    $grand_total_target[$bln_no] += $val;
+                                ?>
+                                    <td class="text-right">
+                                        <a href="<?= site_url('report_penagihan/export_detail?tahun=' . $tahun_pilih . '&bulan=' . $bln_no . '&id_sales=' . $s['id'] . '&tipe=target') ?>" title="Download detail Target Penagihan" style="color:inherit; text-decoration:underline; cursor:pointer;">
+                                            <?= number_format($val) ?>
+                                        </a>
+                                    </td>
+                            <?php endif;
+                            endforeach; ?>
                             <td class="text-right"><b><?= number_format($row_t_target) ?></b></td>
                         </tr>
                         <tr>
@@ -66,22 +67,23 @@
                                 $bln_no = (int)$b['bulan_no'];
                                 if ($tahun_pilih == $tahun_sekarang && $bln_no > $bulan_sekarang):
                             ?>
-                                <td class="text-center text-muted">-</td>
-                            <?php else:
-                                $val = $rekap_realisasi[$s['id']][$bln_no] ?? 0;
-                                $row_t_realisasi += $val;
-                                $grand_total_realisasi[$bln_no] += $val;
-                            ?>
-                                <td class="text-right">
-                                    <a href="<?= site_url('report_penagihan/export_detail?tahun=' . $tahun_pilih . '&bulan=' . $bln_no . '&id_sales=' . $s['id'] . '&tipe=realisasi') ?>" title="Download detail Realisasi Tagihan" style="color:inherit; text-decoration:underline; cursor:pointer;">
-                                        <?= number_format($val) ?>
-                                    </a>
-                                    <br>
-                                    <button type="button" class="btn btn-xs btn-info btn-komisi" data-id-sales="<?= $s['id'] ?>" data-nama-sales="<?= $s['nm_karyawan'] ?>" data-bulan="<?= $bln_no ?>" data-tahun="<?= $tahun_pilih ?>" title="Hitung Komisi">
-                                        <i class="fa fa-calculator"></i> Komisi
-                                    </button>
-                                </td>
-                            <?php endif; endforeach; ?>
+                                    <td class="text-center text-muted">-</td>
+                                <?php else:
+                                    $val = $rekap_realisasi[$s['id']][$bln_no] ?? 0;
+                                    $row_t_realisasi += $val;
+                                    $grand_total_realisasi[$bln_no] += $val;
+                                ?>
+                                    <td class="text-right">
+                                        <a href="<?= site_url('report_penagihan/export_detail?tahun=' . $tahun_pilih . '&bulan=' . $bln_no . '&id_sales=' . $s['id'] . '&tipe=realisasi') ?>" title="Download detail Realisasi Tagihan" style="color:inherit; text-decoration:underline; cursor:pointer;">
+                                            <?= number_format($val) ?>
+                                        </a>
+                                        <br>
+                                        <button type="button" class="btn btn-xs btn-info btn-komisi" data-id-sales="<?= $s['id'] ?>" data-nama-sales="<?= $s['nm_karyawan'] ?>" data-bulan="<?= $bln_no ?>" data-tahun="<?= $tahun_pilih ?>" title="Hitung Komisi">
+                                            <i class="fa fa-calculator"></i> Komisi
+                                        </button>
+                                    </td>
+                            <?php endif;
+                            endforeach; ?>
                             <td class="text-right"><b><?= number_format($row_t_realisasi) ?></b></td>
                         </tr>
                     <?php endforeach; ?>
@@ -89,19 +91,20 @@
                 <tfoot>
                     <tr class="bg-info">
                         <td rowspan="2" style="vertical-align:middle; font-weight:bold;">Target Cabang</td>
-                        <td>Rencana Penagihan</td>
+                        <td>Target Penagihan</td>
                         <?php $total_cabang_t = 0;
                         foreach ($bulan as $b):
                             $bln_no = (int)$b['bulan_no'];
                             if ($tahun_pilih == $tahun_sekarang && $bln_no > $bulan_sekarang):
                         ?>
-                            <td class="text-center text-muted">-</td>
-                        <?php else:
-                            $gt = $grand_total_target[$bln_no];
-                            $total_cabang_t += $gt;
-                        ?>
-                            <td class="text-right"><b><?= number_format($gt) ?></b></td>
-                        <?php endif; endforeach; ?>
+                                <td class="text-center text-muted">-</td>
+                            <?php else:
+                                $gt = $grand_total_target[$bln_no];
+                                $total_cabang_t += $gt;
+                            ?>
+                                <td class="text-right"><b><?= number_format($gt) ?></b></td>
+                        <?php endif;
+                        endforeach; ?>
                         <td class="text-right"><b><?= number_format($total_cabang_t) ?></b></td>
                     </tr>
                     <tr class="bg-info">
@@ -111,13 +114,14 @@
                             $bln_no = (int)$b['bulan_no'];
                             if ($tahun_pilih == $tahun_sekarang && $bln_no > $bulan_sekarang):
                         ?>
-                            <td class="text-center text-muted">-</td>
-                        <?php else:
-                            $gr = $grand_total_realisasi[$bln_no];
-                            $total_cabang_r += $gr;
-                        ?>
-                            <td class="text-right"><b><?= number_format($gr) ?></b></td>
-                        <?php endif; endforeach; ?>
+                                <td class="text-center text-muted">-</td>
+                            <?php else:
+                                $gr = $grand_total_realisasi[$bln_no];
+                                $total_cabang_r += $gr;
+                            ?>
+                                <td class="text-right"><b><?= number_format($gr) ?></b></td>
+                        <?php endif;
+                        endforeach; ?>
                         <td class="text-right"><b><?= number_format($total_cabang_r) ?></b></td>
                     </tr>
                 </tfoot>
@@ -142,61 +146,61 @@
 </div>
 
 <script>
-$(document).ready(function() {
-    $(document).on('click', '.btn-komisi', function() {
-        var idSales = $(this).data('id-sales');
-        var namaSales = $(this).data('nama-sales');
-        var bulan = $(this).data('bulan');
-        var tahun = $(this).data('tahun');
+    $(document).ready(function() {
+        $(document).on('click', '.btn-komisi', function() {
+            var idSales = $(this).data('id-sales');
+            var namaSales = $(this).data('nama-sales');
+            var bulan = $(this).data('bulan');
+            var tahun = $(this).data('tahun');
 
-        $('#modal-komisi-body').html('<p class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</p>');
-        $('#modal-komisi').modal('show');
+            $('#modal-komisi-body').html('<p class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</p>');
+            $('#modal-komisi').modal('show');
 
-        $.ajax({
-            type: 'POST',
-            url: siteurl + 'report_penagihan/form_komisi',
-            data: {
-                id_sales: idSales,
-                nama_sales: namaSales,
-                bulan: bulan,
-                tahun: tahun
-            },
-            success: function(data) {
-                $('#modal-komisi-body').html(data);
-            },
-            error: function() {
-                $('#modal-komisi-body').html('<p class="text-center text-danger">Gagal memuat form.</p>');
-            }
-        });
-    });
-
-    // Save komisi via AJAX
-    $(document).on('submit', '#form-komisi-penagihan', function(e) {
-        e.preventDefault();
-        var formData = $(this).serialize();
-
-        $.ajax({
-            type: 'POST',
-            url: siteurl + 'master_komisi/save_komisi',
-            data: formData,
-            dataType: 'json',
-            success: function(res) {
-                if (res.status == 1) {
-                    swal({
-                        title: "Berhasil!",
-                        text: res.pesan,
-                        type: "success"
-                    }, function() {
-                        $('#modal-komisi').modal('hide');
-                    });
-                } else {
-                    swal("Gagal!", res.pesan, "error");
+            $.ajax({
+                type: 'POST',
+                url: siteurl + 'report_penagihan/form_komisi',
+                data: {
+                    id_sales: idSales,
+                    nama_sales: namaSales,
+                    bulan: bulan,
+                    tahun: tahun
+                },
+                success: function(data) {
+                    $('#modal-komisi-body').html(data);
+                },
+                error: function() {
+                    $('#modal-komisi-body').html('<p class="text-center text-danger">Gagal memuat form.</p>');
                 }
-            },
-            error: function() {
-                swal("Error!", "Terjadi kesalahan.", "error");
-            }
+            });
+        });
+
+        // Save komisi via AJAX
+        $(document).on('submit', '#form-komisi-penagihan', function(e) {
+            e.preventDefault();
+            var formData = $(this).serialize();
+
+            $.ajax({
+                type: 'POST',
+                url: siteurl + 'master_komisi/save_komisi',
+                data: formData,
+                dataType: 'json',
+                success: function(res) {
+                    if (res.status == 1) {
+                        swal({
+                            title: "Berhasil!",
+                            text: res.pesan,
+                            type: "success"
+                        }, function() {
+                            $('#modal-komisi').modal('hide');
+                        });
+                    } else {
+                        swal("Gagal!", res.pesan, "error");
+                    }
+                },
+                error: function() {
+                    swal("Error!", "Terjadi kesalahan.", "error");
+                }
+            });
         });
     });
-});
 </script>
