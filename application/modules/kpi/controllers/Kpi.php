@@ -412,8 +412,8 @@ class Kpi extends Admin_Controller
         if (empty($item)) continue;
 
         $pic_id = $post['pic_id'][$i];
-        $pic = $this->db->select('name')->get_where('employees_internal', ['id' => $pic_id])->row();
-        $pic_name = $pic ? $pic->name : '';
+        $pic = $this->db->select('nm_karyawan')->get_where('employee', ['id' => $pic_id])->row();
+        $pic_name = $pic ? $pic->nm_karyawan : '';
 
         $bobot_value = 0;
         if ($post['bobot_enabled'] == 1 && isset($post['bobot'][$i])) {
@@ -656,8 +656,8 @@ class Kpi extends Admin_Controller
         if (empty($item)) continue;
 
         $pic_id = $post['pic_id'][$i];
-        $pic = $this->db->select('name')->get_where('employees', ['id' => $pic_id])->row();
-        $pic_name = $pic ? $pic->name : '';
+        $pic = $this->db->select('nm_karyawan')->get_where('employee', ['id' => $pic_id])->row();
+        $pic_name = $pic ? $pic->nm_karyawan : '';
 
         $bobot_value = 0;
         if ($post['bobot_enabled'] == 1 && isset($post['bobot'][$i])) {
