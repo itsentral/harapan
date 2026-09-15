@@ -106,13 +106,16 @@ class Invoice_produk extends Admin_Controller
 			// 	->get()
 			// 	->result();
 
+			// HPP diambil dari surat_jalan_detail.costbook (harga beli yang DIBEKUKAN saat SJ di-Save)
+			// agar selaras dengan jurnal stok. Fallback ke sales_order_detail.harga_beli untuk
+			// SJ lama yang belum punya costbook (costbook NULL/0).
 			$sql = "
 					SELECT
 					sod.product,
 					sod.qty_order,
 					sjd.qty_terkirim AS qty_delivery,
 					sod.harga_penawaran,
-					sod.harga_beli,
+					COALESCE(NULLIF(sjd.costbook, 0), sod.harga_beli, 0) AS harga_beli,
 					sod.price_list,
 					sod.diskon_persen,
 					sod.diskon_nilai
@@ -356,7 +359,7 @@ class Invoice_produk extends Admin_Controller
 						COALESCE(s.product, b.product) AS product,
 						b.qty_order,
 						s.qty_terkirim AS qty_delivery,
-						b.harga_beli,
+						COALESCE(NULLIF(s.costbook, 0), b.harga_beli, 0) AS harga_beli,
 						b.price_list,
 						b.harga_penawaran,
 						b.diskon_persen,
@@ -565,6 +568,8 @@ class Invoice_produk extends Admin_Controller
 
 
 			$data_insert_detail = [];
+			// harga_beli (HPP) diambil dari surat_jalan_detail.costbook (harga beku saat SJ Save),
+			// fallback ke sales_order_detail.harga_beli untuk SJ lama tanpa costbook.
 			$get_delivery_details = $this->db
 				->select('
 						s.id_product,
@@ -573,7 +578,8 @@ class Invoice_produk extends Admin_Controller
 						d.code AS uom,
 						b.price_list,
 						b.harga_penawaran,
-						b.diskon_persen
+						b.diskon_persen,
+						COALESCE(NULLIF(s.costbook, 0), b.harga_beli, 0) AS harga_beli
 					')
 				->from('surat_jalan_detail s')
 				->join('sales_order_detail b', 'b.id = s.id_so_det', 'left')
@@ -584,9 +590,13 @@ class Invoice_produk extends Admin_Controller
 				->result();
 
 
+			$sum_harga_beli = 0;
 			foreach ($get_delivery_details as $item_details) {
 				$nilai_disc = (float) $item_details->diskon_persen;
 				$subtotal = $item_details->harga_penawaran * $item_details->qty_delivery;
+				$harga_beli = (float) $item_details->harga_beli;
+				$total_harga_beli_baris = $harga_beli * $item_details->qty_delivery;
+				$sum_harga_beli += $total_harga_beli_baris;
 
 				$data_insert_detail[] = [
 					'id_invoice' => $id_invoice,
@@ -599,12 +609,17 @@ class Invoice_produk extends Admin_Controller
 					'qty' => $item_details->qty_delivery,
 					'uom' => $item_details->uom,
 					'harga' => $item_details->harga_penawaran,
+					'harga_beli' => $harga_beli,
 					'disc' => $nilai_disc,
 					'subtotal' => $subtotal,
 					'created_by' => $this->auth->user_id(),
 					'created_on' => date('Y-m-d')
 				];
 			}
+
+			// Selaraskan total_harga_beli header dengan SUM detail (basis costbook yang sama
+			// dengan yang ditampilkan/dijurnalkan di view), bukan lagi mengandalkan nilai POST.
+			$data_insert['total_harga_beli'] = $sum_harga_beli;
 
 			$insert_invoice = $this->db->insert('tr_invoice_sales', $data_insert);
 			$insert_invoice_details = $this->db->insert_batch('tr_invoice_sales_detail', $data_insert_detail);
