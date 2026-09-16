@@ -210,7 +210,9 @@ class Report_penjualan_hpp extends Admin_Controller
 
             $penjualan_ppn = $subtotal;                          // PENJUALAN + PPN
             $pendapatan    = round($subtotal / 1.11, 2);         // PENDAPATAN (DPP)
-            $hpp           = $costbook_invoice * $qty;            // HPP
+            // Fallback: jika costbook invoice kosong/0, pakai costbook SO (data lama)
+            $harga_hpp     = ($costbook_invoice > 0) ? $costbook_invoice : $costbook_so;
+            $hpp           = $harga_hpp * $qty;                   // HPP
             $laba          = $pendapatan - $hpp;                  // LABA/RUGI KOTOR
             $persen_hpp    = $pendapatan > 0 ? ($hpp / $pendapatan) : 0;
             $persen_laba   = $pendapatan > 0 ? ($laba / $pendapatan) : 0;
