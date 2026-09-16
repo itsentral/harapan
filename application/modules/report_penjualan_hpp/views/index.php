@@ -57,6 +57,7 @@
                         <th class="text-center">QTY</th>
                         <th class="text-center">COSTBOOK SO</th>
                         <th class="text-center">COSTBOOK INVOICE</th>
+                        <th class="text-center">PENJUALAN + PPN</th>
                         <th class="text-center">PENDAPATAN</th>
                         <th class="text-center">HPP</th>
                         <th class="text-center">PERSEN HPP</th>
@@ -68,6 +69,7 @@
                 <tfoot>
                     <tr class="footer-total">
                         <td colspan="12" class="text-center"><strong>TOTAL</strong></td>
+                        <td class="text-right" id="footPenjualanPPN">0</td>
                         <td class="text-right" id="footPendapatan">0</td>
                         <td class="text-right" id="footHPP">0</td>
                         <td class="text-center" id="footPersenHPP">0%</td>
@@ -146,12 +148,14 @@ function initDataTable() {
             },
             dataSrc: function (json) {
                 // Update footer totals dari response
-                var sumPendapatan = json.sumPendapatan || 0;
-                var sumHPP        = json.sumHPP || 0;
-                var sumLaba       = json.sumLaba || 0;
+                var sumPenjualanPPN = json.sumPenjualanPPN || 0;
+                var sumPendapatan   = json.sumPendapatan || 0;
+                var sumHPP          = json.sumHPP || 0;
+                var sumLaba         = json.sumLaba || 0;
                 var pHpp  = sumPendapatan > 0 ? Math.round((sumHPP / sumPendapatan) * 100) : 0;
                 var pLaba = sumPendapatan > 0 ? Math.round((sumLaba / sumPendapatan) * 100) : 0;
 
+                $('#footPenjualanPPN').html('<strong>' + formatNumber(sumPenjualanPPN) + '</strong>');
                 $('#footPendapatan').html('<strong>' + formatNumber(sumPendapatan) + '</strong>');
                 $('#footHPP').html('<strong>' + formatNumber(sumHPP) + '</strong>');
                 $('#footPersenHPP').html('<strong>' + pHpp + '%</strong>');
@@ -163,7 +167,7 @@ function initDataTable() {
             cache: false,
             error: function () {
                 $("#tblPenjualanHpp tbody").html(
-                    '<tr><th colspan="17" class="text-center">No data found in the server</th></tr>'
+                    '<tr><th colspan="18" class="text-center">No data found in the server</th></tr>'
                 );
             }
         }
