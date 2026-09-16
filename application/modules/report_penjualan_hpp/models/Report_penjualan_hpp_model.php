@@ -66,9 +66,12 @@ class Report_penjualan_hpp_model extends BF_Model
             $costbook_invoice = (float) $row['costbook_invoice'];
             $qty              = (float) $row['qty'];
 
+            // Fallback: jika costbook invoice kosong/0, pakai costbook SO (data lama)
+            $harga_hpp     = ($costbook_invoice > 0) ? $costbook_invoice : $costbook_so;
+
             $penjualan_ppn = $subtotal;                          // PENJUALAN + PPN
             $pendapatan    = round($subtotal / 1.11, 2);         // PENDAPATAN (DPP)
-            $hpp           = $costbook_invoice * $qty;            // HPP (dari costbook invoice)
+            $hpp           = $harga_hpp * $qty;                   // HPP (costbook invoice, fallback SO)
             $laba          = $pendapatan - $hpp;                  // LABA/RUGI KOTOR
             $persen_hpp    = $pendapatan > 0 ? round(($hpp / $pendapatan) * 100) : 0;
             $persen_laba   = $pendapatan > 0 ? round(($laba / $pendapatan) * 100) : 0;
