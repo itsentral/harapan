@@ -118,7 +118,11 @@
         }
 
         function formatNum(n) {
-            return n.toLocaleString('id-ID', {
+            // Gunakan koma sebagai pemisah ribuan agar konsisten dengan format
+            // number_format() PHP dan field lain di form ini (mis. "126,464,100").
+            // Locale 'id-ID' memakai titik sebagai pemisah ribuan, yang salah
+            // dibaca ulang oleh toNum() karena titik dianggap desimal.
+            return n.toLocaleString('en-US', {
                 maximumFractionDigits: 0
             });
         }
@@ -183,6 +187,11 @@
             var n_tunggakan = toNum($('#k_nilai_komisi_tunggakan').val());
             var total = n_ontime + n_tunggakan;
             $('#k_total_ontime_tunggakan').val(formatNum(total));
+
+            // Nilai komisi penjualan bergantung pada total ini, jadi hitung ulang
+            // setelah total_ontime_tunggakan ter-update (mengatasi race condition
+            // karena hitungKomisi('ontime'/'tunggakan') bersifat async).
+            hitungPenjualan();
         }
 
         function hitungGrandTotal() {
