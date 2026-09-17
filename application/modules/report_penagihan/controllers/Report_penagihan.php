@@ -373,39 +373,61 @@ class Report_penagihan extends Admin_Controller
         // Hitung target & pencapaian dari data report
         $akhir_bulan = date('Y-m-t', strtotime("$tahun-$bulan-01"));
         $awal_bulan = "$tahun-" . str_pad($bulan, 2, '0', STR_PAD_LEFT) . "-01";
-        $today = date('Y-m-d');
 
-        // 1. Target Tagihan Ontime = piutang yang jatuh tempo masih di bulan ini ATAU sudah lewat <= 15 hari dari hari ini
-        // Sama dengan logika ringkasan: invoice yang statusnya "On Time"
-        $this->db->select("SUM(a.piutang) as total", false);
+        // 1 & 2. Target Tagihan Ontime & Tunggakan (BEKU / historis, sama seperti hitung_rekap_target()).
+        // Sisa piutang per invoice = grand_total dikurangi pembayaran yang diterima s/d akhir
+        // bulan SEBELUM bulan laporan (cutoff). Dengan begitu nilainya tidak lagi bergantung
+        // pada kolom a.piutang yang live (yang terus menyusut tiap kali invoice dibayar) dan
+        // tidak lagi bergantung pada tanggal hari ini saat modal dibuka - sekali bulan laporan
+        // ditutup, nilai target tidak berubah lagi walau dibuka lagi bulan-bulan berikutnya.
+        // Klasifikasi ontime vs tunggakan tetap pakai aturan lama: <=15 hari dari akhir bulan
+        // laporan dianggap ontime, >15 hari dianggap tunggakan.
+        $cutoff_ym = date('Y-m', strtotime("$tahun-$bulan-01 -1 month"));
+
+        $this->db->select('a.id_invoice, a.grand_total, a.jatuh_tempo', false);
         $this->db->from('tr_invoice_sales a');
         $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
         $this->db->join('employee c', 'b.id_karyawan = c.id');
         $this->db->where('c.id', $id_sales);
-        $this->db->where('a.piutang >', 0);
         $this->db->where('a.jatuh_tempo <=', $akhir_bulan);
-        $this->db->where("(
-            (YEAR(a.jatuh_tempo) = YEAR('$today') AND MONTH(a.jatuh_tempo) = MONTH('$today'))
-            OR (a.jatuh_tempo >= '$today')
-            OR (DATEDIFF('$today', a.jatuh_tempo) <= 15)
-        )", null, false);
-        $result = $this->db->get()->row_array();
-        $target_ontime = (float)($result['total'] ?? 0);
+        $invoices_sales = $this->db->get()->result_array();
 
-        // 2. Target Tagihan Tunggakan = piutang yang sudah lewat > 15 hari dari hari ini
-        $this->db->select("SUM(a.piutang) as total", false);
-        $this->db->from('tr_invoice_sales a');
-        $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
-        $this->db->join('employee c', 'b.id_karyawan = c.id');
-        $this->db->where('c.id', $id_sales);
-        $this->db->where('a.piutang >', 0);
-        $this->db->where('a.jatuh_tempo <=', $akhir_bulan);
-        $this->db->where("a.jatuh_tempo < '$today'", null, false);
-        $this->db->where("DATEDIFF('$today', a.jatuh_tempo) > 15", null, false);
-        $result = $this->db->get()->row_array();
-        $target_tunggakan = (float)($result['total'] ?? 0);
+        $bayar_cutoff_map = [];
+        $invoice_ids = array_column($invoices_sales, 'id_invoice');
+        if (!empty($invoice_ids)) {
+            $this->db->select("pd.no_invoice, SUM(pd.total_bayar_idr) as amt", false);
+            $this->db->from('tr_invoice_payment_detail pd');
+            $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = pd.kd_pembayaran');
+            $this->db->where_in('pd.no_invoice', $invoice_ids);
+            $this->db->where("DATE_FORMAT(p.tgl_pembayaran, '%Y-%m') <= '$cutoff_ym'", null, false);
+            $this->db->group_by('pd.no_invoice');
+            $pay_rows = $this->db->get()->result_array();
+            foreach ($pay_rows as $pr) {
+                $bayar_cutoff_map[$pr['no_invoice']] = (float)$pr['amt'];
+            }
+        }
 
-        // 3. Pencapaian Tagihan Ontime = total bayar untuk invoice yang jatuh tempo bulan ini, tanggal bayar <= jatuh tempo
+        $target_ontime = 0.0;
+        $target_tunggakan = 0.0;
+        $selisih_hari_grace = 15 * 86400;
+        foreach ($invoices_sales as $inv) {
+            $bayar_cutoff = $bayar_cutoff_map[$inv['id_invoice']] ?? 0.0;
+            $sisa = (float)$inv['grand_total'] - $bayar_cutoff;
+            if ($sisa <= 0) {
+                continue;
+            }
+
+            if (strtotime($akhir_bulan) - strtotime($inv['jatuh_tempo']) <= $selisih_hari_grace) {
+                $target_ontime += $sisa;
+            } else {
+                $target_tunggakan += $sisa;
+            }
+        }
+
+        // 3. Pencapaian Tagihan Ontime = total bayar yang DITERIMA di bulan ini (samakan dengan
+        // definisi "Realisasi Tagihan" di grid utama index(), yaitu dikelompokkan berdasarkan
+        // tanggal pembayaran/p.tgl_pembayaran, bukan berdasarkan jatuh tempo invoice), lalu
+        // dipilah ontime (tanggal bayar <= jatuh tempo) vs tunggakan (tanggal bayar > jatuh tempo).
         $this->db->select("SUM(pd.total_bayar_idr) as total", false);
         $this->db->from('tr_invoice_payment_detail pd');
         $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = pd.kd_pembayaran');
@@ -413,14 +435,14 @@ class Report_penagihan extends Admin_Controller
         $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
         $this->db->join('employee c', 'b.id_karyawan = c.id');
         $this->db->where('c.id', $id_sales);
-        $this->db->where("YEAR(a.jatuh_tempo) = " . (int)$tahun, null, false);
-        $this->db->where("MONTH(a.jatuh_tempo) = " . (int)$bulan, null, false);
+        $this->db->where("YEAR(p.tgl_pembayaran) = " . (int)$tahun, null, false);
+        $this->db->where("MONTH(p.tgl_pembayaran) = " . (int)$bulan, null, false);
         $this->db->where('a.total_bayar >', 0);
         $this->db->where("p.tgl_pembayaran <= a.jatuh_tempo", null, false);
         $result = $this->db->get()->row_array();
         $realisasi_ontime = (float)($result['total'] ?? 0);
 
-        // 4. Pencapaian Tagihan Tunggakan = total bayar untuk invoice yang jatuh tempo bulan ini, tanggal bayar > jatuh tempo
+        // 4. Pencapaian Tagihan Tunggakan = sama seperti di atas, tapi bagian tanggal bayar > jatuh tempo
         $this->db->select("SUM(pd.total_bayar_idr) as total", false);
         $this->db->from('tr_invoice_payment_detail pd');
         $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = pd.kd_pembayaran');
@@ -428,8 +450,8 @@ class Report_penagihan extends Admin_Controller
         $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
         $this->db->join('employee c', 'b.id_karyawan = c.id');
         $this->db->where('c.id', $id_sales);
-        $this->db->where("YEAR(a.jatuh_tempo) = " . (int)$tahun, null, false);
-        $this->db->where("MONTH(a.jatuh_tempo) = " . (int)$bulan, null, false);
+        $this->db->where("YEAR(p.tgl_pembayaran) = " . (int)$tahun, null, false);
+        $this->db->where("MONTH(p.tgl_pembayaran) = " . (int)$bulan, null, false);
         $this->db->where('a.total_bayar >', 0);
         $this->db->where("p.tgl_pembayaran > a.jatuh_tempo", null, false);
         $result = $this->db->get()->row_array();
