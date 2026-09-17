@@ -93,7 +93,7 @@
                                             <span class="input-group-addon"><i class="fa fa-percent"></i></span>
                                         </div>
                                     </td>
-                                    <td><input type="text" name="nilai_komisi_<?= $key ?>" id="nilai_komisi_<?= $key ?>" class="form-control moneyFormat" readonly value="<?= isset($komisi) ? number_format($komisi->{'nilai_komisi_' . $key}, 2) : '' ?>"></td>
+                                    <td><input type="hidden" name="nilai_komisi_<?= $key ?>" id="nilai_komisi_<?= $key ?>" value="<?= isset($komisi) ? number_format($komisi->{'nilai_komisi_' . $key}, 2, '.', '') : '' ?>"></td>
                                 </tr>
                             <?php endforeach; ?>
 

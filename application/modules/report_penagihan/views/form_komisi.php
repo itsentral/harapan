@@ -47,7 +47,7 @@
                         <span class="input-group-addon">%</span>
                     </div>
                 </td>
-                <td><input type="text" name="nilai_komisi_ontime" id="k_nilai_komisi_ontime" class="form-control input-sm komisiMoney" readonly value="<?= isset($komisi->nilai_komisi_ontime) ? number_format($komisi->nilai_komisi_ontime, 0) : '' ?>"></td>
+                <td><input type="hidden" name="nilai_komisi_ontime" id="k_nilai_komisi_ontime" value="<?= isset($komisi->nilai_komisi_ontime) ? number_format($komisi->nilai_komisi_ontime, 0) : '' ?>"></td>
             </tr>
 
             <!-- Pencapaian Pembayaran Tunggakan -->
@@ -67,7 +67,7 @@
                         <span class="input-group-addon">%</span>
                     </div>
                 </td>
-                <td><input type="text" name="nilai_komisi_tunggakan" id="k_nilai_komisi_tunggakan" class="form-control input-sm komisiMoney" readonly value="<?= isset($komisi->nilai_komisi_tunggakan) ? number_format($komisi->nilai_komisi_tunggakan, 0) : '' ?>"></td>
+                <td><input type="hidden" name="nilai_komisi_tunggakan" id="k_nilai_komisi_tunggakan" value="<?= isset($komisi->nilai_komisi_tunggakan) ? number_format($komisi->nilai_komisi_tunggakan, 0) : '' ?>"></td>
             </tr>
 
             <!-- Baris Total disembunyikan dari tampilan, namun field tetap dipertahankan
