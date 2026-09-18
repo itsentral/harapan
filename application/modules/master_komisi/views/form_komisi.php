@@ -93,13 +93,15 @@
                                             <span class="input-group-addon"><i class="fa fa-percent"></i></span>
                                         </div>
                                     </td>
-                                    <td><input type="text" name="nilai_komisi_<?= $key ?>" id="nilai_komisi_<?= $key ?>" class="form-control moneyFormat" readonly value="<?= isset($komisi) ? number_format($komisi->{'nilai_komisi_' . $key}, 2) : '' ?>"></td>
+                                    <td><input type="hidden" name="nilai_komisi_<?= $key ?>" id="nilai_komisi_<?= $key ?>" value="<?= isset($komisi) ? number_format($komisi->{'nilai_komisi_' . $key}, 2, '.', '') : '' ?>"></td>
                                 </tr>
                             <?php endforeach; ?>
 
-                            <tr>
-                                <td colspan="5" class="text-right">Total</td>
-                                <td><input type="text" name="total_ontime_tunggakan" id="total_ontime_tunggakan" class="form-control moneyFormat" readonly value="<?= isset($komisi) ? number_format($komisi->total_ontime_tunggakan, 2) : '' ?>"></td>
+                            <!-- Baris Total disembunyikan dari tampilan, namun field tetap
+                                 dipertahankan (hidden) karena nilainya dipakai untuk menghitung
+                                 komisi penjualan dan disimpan saat Save. -->
+                            <tr style="display:none;">
+                                <td colspan="6"><input type="hidden" name="total_ontime_tunggakan" id="total_ontime_tunggakan" value="<?= isset($komisi) ? number_format($komisi->total_ontime_tunggakan, 2, '.', '') : '' ?>"></td>
                             </tr>
 
                             <tr>
@@ -121,9 +123,10 @@
                                 <td><input type="text" name="nilai_komisi_penjualan" id="nilai_komisi_penjualan" class="form-control moneyFormat" readonly value="<?= isset($komisi) ? number_format($komisi->nilai_komisi_penjualan, 2) : '' ?>"></td>
                             </tr>
 
-                            <tr>
-                                <td colspan="5" class="text-right">Grand Total</td>
-                                <td><input type="text" name="grand_total" id="grand_total" class="form-control moneyFormat" readonly value="<?= isset($komisi) ? number_format($komisi->grand_total, 2) : '' ?>"></td>
+                            <!-- Baris Grand Total disembunyikan dari tampilan, namun field tetap
+                                 dipertahankan (hidden) agar tetap tersimpan saat Save. -->
+                            <tr style="display:none;">
+                                <td colspan="6"><input type="hidden" name="grand_total" id="grand_total" value="<?= isset($komisi) ? number_format($komisi->grand_total, 2, '.', '') : '' ?>"></td>
                             </tr>
                         </tbody>
                     </table>
