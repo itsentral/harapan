@@ -183,8 +183,13 @@ class Report_penjualan_hpp_summary_model extends BF_Model
 
         if (isset($columns_order_by[$column_order])) {
             $this->db->order_by($columns_order_by[$column_order], $column_dir);
+            // Sort sekunder: no invoice ascending
+            if ($columns_order_by[$column_order] !== 'dt.id_invoice') {
+                $this->db->order_by('dt.id_invoice', 'asc');
+            }
         } else {
             $this->db->order_by('created_on', 'asc');
+            $this->db->order_by('dt.id_invoice', 'asc');
         }
 
         if ($limit_length != -1) {
