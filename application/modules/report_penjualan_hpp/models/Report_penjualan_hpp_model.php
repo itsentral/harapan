@@ -62,17 +62,15 @@ class Report_penjualan_hpp_model extends BF_Model
 
         foreach ($query->result_array() as $row) {
             $subtotal         = (float) $row['subtotal'];
-            $costbook_so      = (float) $row['costbook_so'];
             $costbook_invoice = (float) $row['costbook_invoice'];
             $qty              = (float) $row['qty'];
 
-            // Fallback: jika costbook invoice kosong/0, pakai costbook SO (data lama)
-            $harga_hpp     = ($costbook_invoice > 0) ? $costbook_invoice : $costbook_so;
+            $harga_hpp     = $costbook_invoice;                      // Costbook HPP dari dt.harga_beli
 
-            $harga_jual_satuan = $qty > 0 ? ($subtotal / $qty) : 0;   // Harga jual per unit
+            $harga_jual        = round($subtotal / 1.11, 2);         // Harga jual sesuai invoice (tanpa PPN)
+            $harga_jual_satuan = $qty > 0 ? ($harga_jual / $qty) : 0; // Harga jual per unit (tanpa PPN)
             $costbook_hpp      = $harga_hpp;                          // Costbook HPP per unit
-            $harga_jual        = $subtotal;                          // Harga jual sesuai invoice
-            $pendapatan        = round($subtotal / 1.11, 2);         // Pendapatan (DPP)
+            $pendapatan        = $harga_jual;                        // Pendapatan (DPP)
             $hpp               = $harga_hpp * $qty;                   // HPP (harga_beli * qty)
             $laba              = $pendapatan - $hpp;                  // LABA/RUGI KOTOR
             $persen_laba       = $pendapatan > 0 ? round(($laba / $pendapatan) * 100) : 0;
@@ -158,7 +156,6 @@ class Report_penjualan_hpp_model extends BF_Model
             dt.id_produk,
             dt.nm_produk,
             ROUND(dt.qty) AS qty,
-            IFNULL(sod.harga_beli, 0) AS costbook_so,
             IFNULL(dt.harga_beli, 0)  AS costbook_invoice,
             dt.subtotal
         ";
@@ -166,8 +163,6 @@ class Report_penjualan_hpp_model extends BF_Model
         // Closure: apply joins
         $apply_joins = function () {
             $this->db->join('tr_invoice_sales i', 'i.id_invoice = dt.id_invoice', 'inner');
-            $this->db->join('surat_jalan_detail sjd', 'sjd.no_surat_jalan = dt.id_delivery AND sjd.id_product = dt.id_produk', 'left');
-            $this->db->join('sales_order_detail sod', 'sod.id = sjd.id_so_det', 'left');
         };
 
         // Closure: apply filters
@@ -257,17 +252,11 @@ class Report_penjualan_hpp_model extends BF_Model
                 dt.id_produk,
                 dt.nm_produk,
                 ROUND(dt.qty) AS qty,
-                IFNULL(sod.harga_beli, 0) AS costbook_so,
                 IFNULL(dt.harga_beli, 0)  AS costbook_invoice,
                 dt.subtotal
             FROM tr_invoice_sales_detail dt
             INNER JOIN tr_invoice_sales i
                 ON i.id_invoice = dt.id_invoice
-            LEFT JOIN surat_jalan_detail sjd
-                ON sjd.no_surat_jalan = dt.id_delivery
-               AND sjd.id_product    = dt.id_produk
-            LEFT JOIN sales_order_detail sod
-                ON sod.id = sjd.id_so_det
             WHERE IFNULL(i.is_cancel, 0) = 0
               AND IFNULL(dt.qty, 0) > 0
         ";

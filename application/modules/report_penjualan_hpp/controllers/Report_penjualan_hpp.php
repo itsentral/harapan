@@ -200,16 +200,14 @@ class Report_penjualan_hpp extends Admin_Controller
 
         foreach ($rows as $row) {
             $subtotal         = (float) $row->subtotal;
-            $costbook_so      = (float) $row->costbook_so;
             $costbook_invoice = (float) $row->costbook_invoice;
             $qty              = (float) $row->qty;
 
-            // Fallback: jika costbook invoice kosong/0, pakai costbook SO (data lama)
-            $harga_hpp         = ($costbook_invoice > 0) ? $costbook_invoice : $costbook_so;
-            $harga_jual_satuan = $qty > 0 ? ($subtotal / $qty) : 0;   // Harga jual per unit
+            $harga_hpp         = $costbook_invoice;                  // Costbook HPP dari dt.harga_beli
+            $harga_jual        = round($subtotal / 1.11, 2);         // Harga jual sesuai invoice (tanpa PPN)
+            $harga_jual_satuan = $qty > 0 ? ($harga_jual / $qty) : 0; // Harga jual per unit (tanpa PPN)
             $costbook_hpp      = $harga_hpp;                          // Costbook HPP per unit
-            $harga_jual        = $subtotal;                          // Harga jual sesuai invoice
-            $pendapatan        = round($subtotal / 1.11, 2);         // Pendapatan (DPP)
+            $pendapatan        = $harga_jual;                        // Pendapatan (DPP)
             $hpp               = $harga_hpp * $qty;                   // HPP
             $laba              = $pendapatan - $hpp;                  // LABA/RUGI KOTOR
             $persen_laba       = $pendapatan > 0 ? ($laba / $pendapatan) : 0;
