@@ -53,6 +53,19 @@ class Warehouse extends Admin_Controller
         $this->Warehouse_model->get_json_kartu_stok();
     }
 
+    public function kartu_stok_incoming()
+    {
+        $this->template->title('Kartu Stok Incoming');
+        $this->template->page_icon('fa fa-sign-in');
+        $this->template->set('is_admin', $this->auth->is_admin());
+        $this->template->render('kartu_stok_incoming');
+    }
+
+    public function data_side_kartu_stok_incoming()
+    {
+        $this->Warehouse_model->get_json_kartu_stok_incoming();
+    }
+
     public function export_excel()
     {
         $this->db->select('
@@ -222,6 +235,106 @@ class Warehouse extends Admin_Controller
         }
         header('Content-Type: application/vnd.ms-excel');
         header('Content-Disposition: attachment;filename="Kartu_Stok_' . date('Ymd_His') . '.xls"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        exit;
+    }
+
+    public function export_excel_kartu_stok_incoming()
+    {
+        $is_admin = $this->auth->is_admin();
+        $start = $this->input->get('start_date', true);
+        $end   = $this->input->get('end_date', true);
+
+        $incoming_types = ['Incoming Product', 'incoming'];
+
+        $this->db->select('ks.*');
+        $this->db->from('kartu_stok ks');
+        $this->db->where('ks.deleted', null);
+        $this->db->where_in('ks.transaksi', $incoming_types);
+        if (!empty($start)) $this->db->where('DATE(ks.tgl_transaksi) >=', $start);
+        if (!empty($end))   $this->db->where('DATE(ks.tgl_transaksi) <=', $end);
+        $this->db->order_by('ks.id', 'asc');
+
+        $rows = $this->db->get()->result();
+
+        if (empty($rows)) {
+            echo "<script>alert('Data tidak ditemukan'); window.history.back();</script>";
+            return;
+        }
+
+        set_time_limit(0);
+        ini_set('memory_limit', '512M');
+        $this->load->library('PHPExcel');
+
+        $xls   = new PHPExcel();
+        $sheet = $xls->getActiveSheet();
+
+        $periode = ($start && $end) ? $start . ' s/d ' . $end : 'Semua Data';
+        $sheet->setCellValue('A1', 'REPORT KARTU STOK INCOMING - ' . $periode);
+        $sheet->mergeCells($is_admin ? 'A1:O2' : 'A1:N2');
+
+        $headers = [
+            'A' => '#',
+            'B' => 'Tgl Transaksi',
+            'C' => 'No. Transaksi',
+            'D' => 'Jenis Transaksi',
+            'E' => 'Id Produk',
+            'F' => 'Produk',
+            'G' => 'Stock Awal',
+            'H' => 'Booking Awal',
+            'I' => 'Free Stock Awal',
+            'J' => 'In/Out',
+            'K' => 'Booking Transaksi',
+            'L' => 'Stock Akhir',
+            'M' => 'Booking Akhir',
+            'N' => 'Free Stock Akhir',
+        ];
+        if ($is_admin) {
+            $headers['O'] = 'Harga Beli';
+        }
+        $rowHeader = 4;
+        foreach ($headers as $col => $label) {
+            $sheet->setCellValue($col . $rowHeader, $label);
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $r = $rowHeader + 1;
+        $no = 1;
+        foreach ($rows as $row) {
+            $sheet->setCellValue('A' . $r, $no++);
+            if (!empty($row->tgl_transaksi)) {
+                $dateOnly = substr($row->tgl_transaksi, 0, 10); // 'Y-m-d'
+                list($y, $m, $d) = array_map('intval', explode('-', $dateOnly));
+                $tgl = (float)PHPExcel_Shared_Date::FormattedPHPToExcel($y, $m, $d);
+                $sheet->setCellValueExplicit('B' . $r, $tgl, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+                $sheet->getStyle('B' . $r)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+            }
+            $sheet->setCellValueExplicit('C' . $r, (string)$row->no_transaksi, PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit('D' . $r, (string)$row->transaksi, PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit('E' . $r, (string)$row->code_lv4, PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit('F' . $r, (string)$row->nm_product, PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit('G' . $r, (float)$row->qty, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('H' . $r, (float)$row->qty_book, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('I' . $r, (float)$row->qty_free, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('J' . $r, (float)$row->qty_transaksi, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('K' . $r, (float)($row->qty_book_akhir - $row->qty_book), PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('L' . $r, (float)$row->qty_akhir, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('M' . $r, (float)$row->qty_book_akhir, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit('N' . $r, (float)$row->qty_free_akhir, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            if ($is_admin) {
+                $sheet->setCellValueExplicit('O' . $r, (float)(isset($row->harga_stok) ? $row->harga_stok : 0), PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            }
+            $r++;
+        }
+
+        $sheet->setTitle('Kartu Stok Incoming');
+        $writer = PHPExcel_IOFactory::createWriter($xls, 'Excel5');
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment;filename="Kartu_Stok_Incoming_' . date('Ymd_His') . '.xls"');
         header('Cache-Control: max-age=0');
         $writer->save('php://output');
         exit;

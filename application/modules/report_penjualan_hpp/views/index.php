@@ -46,21 +46,18 @@
                 <thead>
                     <tr>
                         <th class="text-center" style="width:35px">No</th>
+                        <th class="text-center">NOMOR SO</th>
+                        <th class="text-center">Nama Customer</th>
+                        <th class="text-center">Nama Sales</th>
                         <th class="text-center">TGL INVOICE</th>
                         <th class="text-center">NO INVOICE</th>
-                        <th class="text-center">NOMOR SO</th>
-                        <th class="text-center">No Penawaran</th>
-                        <th class="text-center">Nomor PO</th>
-                        <th class="text-center">NOMOR SJ</th>
                         <th class="text-center">ID BARANG</th>
                         <th class="text-center">NAMA BARANG</th>
                         <th class="text-center">QTY</th>
-                        <th class="text-center">COSTBOOK SO</th>
-                        <th class="text-center">COSTBOOK INVOICE</th>
-                        <th class="text-center">PENJUALAN + PPN</th>
-                        <th class="text-center">PENDAPATAN</th>
+                        <th class="text-center">Hrga jual satuan</th>
+                        <th class="text-center">COSTBOOK HPP</th>
+                        <th class="text-center">HARGA JUAL</th>
                         <th class="text-center">HPP</th>
-                        <th class="text-center">PERSEN HPP</th>
                         <th class="text-center">LABA/RUGI KOTOR</th>
                         <th class="text-center">PERSEN LABA/RUGI</th>
                     </tr>
@@ -68,11 +65,9 @@
                 <tbody></tbody>
                 <tfoot>
                     <tr class="footer-total">
-                        <td colspan="12" class="text-center"><strong>TOTAL</strong></td>
+                        <td colspan="11" class="text-center"><strong>TOTAL</strong></td>
                         <td class="text-right" id="footPenjualanPPN">0</td>
-                        <td class="text-right" id="footPendapatan">0</td>
                         <td class="text-right" id="footHPP">0</td>
-                        <td class="text-center" id="footPersenHPP">0%</td>
                         <td class="text-right" id="footLaba">0</td>
                         <td class="text-center" id="footPersenLaba">0%</td>
                     </tr>
@@ -129,7 +124,7 @@ function initDataTable() {
         searching: true,
         responsive: false,
         scrollX: true,
-        aaSorting: [[1, "desc"]],
+        aaSorting: [[4, "asc"]],
         columnDefs: [
             { targets: 'no-sort', orderable: false }
         ],
@@ -152,13 +147,10 @@ function initDataTable() {
                 var sumPendapatan   = json.sumPendapatan || 0;
                 var sumHPP          = json.sumHPP || 0;
                 var sumLaba         = json.sumLaba || 0;
-                var pHpp  = sumPendapatan > 0 ? Math.round((sumHPP / sumPendapatan) * 100) : 0;
                 var pLaba = sumPendapatan > 0 ? Math.round((sumLaba / sumPendapatan) * 100) : 0;
 
                 $('#footPenjualanPPN').html('<strong>' + formatNumber(sumPenjualanPPN) + '</strong>');
-                $('#footPendapatan').html('<strong>' + formatNumber(sumPendapatan) + '</strong>');
                 $('#footHPP').html('<strong>' + formatNumber(sumHPP) + '</strong>');
-                $('#footPersenHPP').html('<strong>' + pHpp + '%</strong>');
                 $('#footLaba').html('<strong>' + formatNumber(sumLaba) + '</strong>');
                 $('#footPersenLaba').html('<strong>' + pLaba + '%</strong>');
 
@@ -167,7 +159,7 @@ function initDataTable() {
             cache: false,
             error: function () {
                 $("#tblPenjualanHpp tbody").html(
-                    '<tr><th colspan="18" class="text-center">No data found in the server</th></tr>'
+                    '<tr><th colspan="15" class="text-center">No data found in the server</th></tr>'
                 );
             }
         }
