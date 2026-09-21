@@ -69,35 +69,33 @@ class Report_penjualan_hpp_model extends BF_Model
             // Fallback: jika costbook invoice kosong/0, pakai costbook SO (data lama)
             $harga_hpp     = ($costbook_invoice > 0) ? $costbook_invoice : $costbook_so;
 
-            $penjualan_ppn = $subtotal;                          // PENJUALAN + PPN
-            $pendapatan    = round($subtotal / 1.11, 2);         // PENDAPATAN (DPP)
-            $hpp           = $harga_hpp * $qty;                   // HPP (costbook invoice, fallback SO)
-            $laba          = $pendapatan - $hpp;                  // LABA/RUGI KOTOR
-            $persen_hpp    = $pendapatan > 0 ? round(($hpp / $pendapatan) * 100) : 0;
-            $persen_laba   = $pendapatan > 0 ? round(($laba / $pendapatan) * 100) : 0;
+            $harga_jual_satuan = $qty > 0 ? ($subtotal / $qty) : 0;   // Harga jual per unit
+            $costbook_hpp      = $harga_hpp;                          // Costbook HPP per unit
+            $harga_jual        = $subtotal;                          // Harga jual sesuai invoice
+            $pendapatan        = round($subtotal / 1.11, 2);         // Pendapatan (DPP)
+            $hpp               = $harga_hpp * $qty;                   // HPP (harga_beli * qty)
+            $laba              = $pendapatan - $hpp;                  // LABA/RUGI KOTOR
+            $persen_laba       = $pendapatan > 0 ? round(($laba / $pendapatan) * 100) : 0;
 
-            $sumPenjualanPPN += $penjualan_ppn;
+            $sumPenjualanPPN += $harga_jual;
             $sumPendapatan   += $pendapatan;
             $sumHPP          += $hpp;
             $sumLaba         += $laba;
 
             $nestedData = [];
             $nestedData[] = "<div class='text-center'>{$urut}</div>";
+            $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_so'] ?? '') . "</div>";
+            $nestedData[] = "<div>" . ($row['nm_customer'] ?? '') . "</div>";
+            $nestedData[] = "<div>" . ($row['created_by'] ?? '') . "</div>";
             $nestedData[] = "<div class='text-center'>" . ((!empty($row['created_on'])) ? date('d/m/Y H:i', strtotime($row['created_on'])) : '') . "</div>";
             $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_invoice']) . "</div>";
-            $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_so'] ?? '') . "</div>";
-            $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_penawaran'] ?? '') . "</div>";
-            $nestedData[] = "<div class='text-center'>-</div>"; // Nomor PO belum ada di database
-            $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_delivery'] ?? '') . "</div>";
             $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_produk'] ?? '') . "</div>";
             $nestedData[] = "<div>" . ($row['nm_produk'] ?? '') . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($qty) . "</div>";
-            $nestedData[] = "<div class='text-right'>" . number_format($costbook_so) . "</div>";
-            $nestedData[] = "<div class='text-right'>" . number_format($costbook_invoice) . "</div>";
-            $nestedData[] = "<div class='text-right'>" . number_format($penjualan_ppn) . "</div>";
-            $nestedData[] = "<div class='text-right'>" . number_format($pendapatan) . "</div>";
+            $nestedData[] = "<div class='text-right'>" . number_format($harga_jual_satuan) . "</div>";
+            $nestedData[] = "<div class='text-right'>" . number_format($costbook_hpp) . "</div>";
+            $nestedData[] = "<div class='text-right'>" . number_format($harga_jual) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($hpp) . "</div>";
-            $nestedData[] = "<div class='text-center'>{$persen_hpp}%</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($laba) . "</div>";
             $nestedData[] = "<div class='text-center'>{$persen_laba}%</div>";
 
@@ -133,24 +131,26 @@ class Report_penjualan_hpp_model extends BF_Model
     ) {
         $columns_order_by = [
             0  => 'dt.id',
-            1  => 'i.created_on',
-            2  => 'dt.id_invoice',
-            3  => 'dt.id_so',
-            4  => 'dt.id_penawaran',
-            5  => 'dt.id_invoice',   // Nomor PO placeholder
-            6  => 'dt.id_delivery',
-            7  => 'dt.id_produk',
-            8  => 'dt.nm_produk',
-            9  => 'dt.qty',
-            10 => 'sod.harga_beli',
-            11 => 'dt.harga_beli',   // Costbook Invoice
-            12 => 'dt.subtotal',     // Penjualan + PPN
-            13 => 'dt.subtotal',     // Pendapatan (sortir pakai subtotal, hitungan /1.11 di PHP)
+            1  => 'dt.id_so',
+            2  => 'i.nm_customer',
+            3  => 'i.created_by',
+            4  => 'i.created_on',
+            5  => 'dt.id_invoice',
+            6  => 'dt.id_produk',
+            7  => 'dt.nm_produk',
+            8  => 'dt.qty',
+            9  => 'dt.subtotal',     // Harga jual satuan (sortir pakai subtotal)
+            10 => 'dt.harga_beli',   // Costbook HPP
+            11 => 'dt.subtotal',     // Harga jual
+            12 => 'dt.harga_beli',   // HPP
+            13 => 'dt.subtotal',     // Laba/Rugi (sortir pakai subtotal, hitungan di PHP)
         ];
 
         $select = "
             dt.id,
             i.created_on,
+            i.nm_customer,
+            i.created_by,
             dt.id_invoice,
             dt.id_so,
             dt.id_penawaran,
@@ -173,6 +173,7 @@ class Report_penjualan_hpp_model extends BF_Model
         // Closure: apply filters
         $apply_filters = function () use ($tgl_dari, $tgl_sampai) {
             $this->db->where('IFNULL(i.is_cancel, 0) =', 0, false);
+            $this->db->where('IFNULL(dt.qty, 0) >', 0, false);
 
             if (!empty($tgl_dari) && !empty($tgl_sampai)) {
                 $this->db->where('DATE(i.created_on) >=', $tgl_dari);
@@ -247,6 +248,8 @@ class Report_penjualan_hpp_model extends BF_Model
         $sql = "
             SELECT
                 i.created_on,
+                i.nm_customer,
+                i.created_by,
                 dt.id_invoice,
                 dt.id_so,
                 dt.id_penawaran,
@@ -266,6 +269,7 @@ class Report_penjualan_hpp_model extends BF_Model
             LEFT JOIN sales_order_detail sod
                 ON sod.id = sjd.id_so_det
             WHERE IFNULL(i.is_cancel, 0) = 0
+              AND IFNULL(dt.qty, 0) > 0
         ";
 
         $binds = [];
