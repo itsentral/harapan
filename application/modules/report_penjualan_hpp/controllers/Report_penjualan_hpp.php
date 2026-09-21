@@ -110,28 +110,27 @@ class Report_penjualan_hpp extends Admin_Controller
         ];
 
         // =========================
-        // Row 1: NAMA TABEL
+        // Row 1: JUDUL REPORT
         // =========================
-        $sheet->setCellValue('A1', 'NAMA TABEL');
-        $sheet->getStyle('A1')->applyFromArray($styleSubTitle);
-        $sheet->setCellValue('B1', 'tr_invoice_sales_detail');
-        $sheet->getStyle('B1')->getFont()->setBold(true);
+        $sheet->mergeCells('A1:O1');
+        $sheet->setCellValue('A1', 'Report Penjualan vs HPP');
+        $sheet->getStyle('A1')->applyFromArray($styleTitle);
 
-        // Row 2: PERIODE
-        $sheet->setCellValue('A2', 'PERIODE');
-        $sheet->getStyle('A2')->applyFromArray($styleSubTitle);
-
+        // Row 2: PERIODE (judul)
         $periodeText = '';
         if (!empty($tgl_dari) && !empty($tgl_sampai)) {
-            $periodeText = date('d/m/Y', strtotime($tgl_dari)) . '  s/d  ' . date('d/m/Y', strtotime($tgl_sampai));
+            $periodeText = 'Periode ' . date('d/m/Y', strtotime($tgl_dari)) . ' s/d ' . date('d/m/Y', strtotime($tgl_sampai));
         } elseif (!empty($tgl_dari)) {
-            $periodeText = 'Mulai ' . date('d/m/Y', strtotime($tgl_dari));
+            $periodeText = 'Periode Mulai ' . date('d/m/Y', strtotime($tgl_dari));
         } elseif (!empty($tgl_sampai)) {
-            $periodeText = 'Sampai ' . date('d/m/Y', strtotime($tgl_sampai));
+            $periodeText = 'Periode Sampai ' . date('d/m/Y', strtotime($tgl_sampai));
         } else {
-            $periodeText = 'Semua';
+            $periodeText = 'Periode: Semua';
         }
-        $sheet->setCellValue('B2', $periodeText);
+        $sheet->mergeCells('A2:O2');
+        $sheet->setCellValue('A2', $periodeText);
+        $sheet->getStyle('A2')->applyFromArray($styleTitle);
+        $sheet->getStyle('A2')->getFont()->setSize(11)->getColor()->setRGB('000000');
 
         // Row 3: kosong
         // =========================
@@ -139,62 +138,48 @@ class Report_penjualan_hpp extends Admin_Controller
         // Row 5: Header (FIELD / KOLOM)
         // =========================
         $rowH1 = 4;
-        $rowH2 = 5;
 
         $headers = [
-            'A' => ['judul' => 'No',               'field' => ''],
-            'B' => ['judul' => 'TGL INVOICE',       'field' => 'created_on'],
-            'C' => ['judul' => 'NO INVOICE',         'field' => 'id_invoice'],
-            'D' => ['judul' => 'NOMOR SO',           'field' => 'id_so'],
-            'E' => ['judul' => 'No Penawaran',       'field' => 'id_penawaran'],
-            'F' => ['judul' => 'Nomor PO',           'field' => ''],
-            'G' => ['judul' => 'NOMOR SJ',           'field' => 'id_delivery'],
-            'H' => ['judul' => 'ID BARANG',          'field' => 'id_produk'],
-            'I' => ['judul' => 'NAMA BARANG',        'field' => 'nama_produk'],
-            'J' => ['judul' => 'QTY',                'field' => 'qty'],
-            'K' => ['judul' => 'COSTBOOK SO',        'field' => 'sod.harga_beli'],
-            'L' => ['judul' => 'COSTBOOK INVOICE',   'field' => 'dt.harga_beli'],
-            'M' => ['judul' => 'PENJUALAN + PPN',    'field' => 'subtotal'],
-            'N' => ['judul' => 'PENDAPATAN',         'field' => 'subtotal / 1,11'],
-            'O' => ['judul' => 'HPP',                'field' => 'harga_beli * qty'],
-            'P' => ['judul' => 'PERSEN HPP',         'field' => 'hpp / pendapatan'],
-            'Q' => ['judul' => 'LABA/RUGI KOTOR',    'field' => 'pendapatan - hpp'],
-            'R' => ['judul' => 'PERSEN LABA/RUGI',   'field' => 'laba / pendapatan'],
+            'A' => ['judul' => 'No',                 'field' => ''],
+            'B' => ['judul' => 'NOMOR SO',           'field' => 'id_so'],
+            'C' => ['judul' => 'Nama Customer',      'field' => 'nm_customer'],
+            'D' => ['judul' => 'Nama Sales',         'field' => 'created_by'],
+            'E' => ['judul' => 'TGL INVOICE',        'field' => 'created_on'],
+            'F' => ['judul' => 'NO INVOICE',         'field' => 'id_invoice'],
+            'G' => ['judul' => 'ID BARANG',          'field' => 'id_produk'],
+            'H' => ['judul' => 'NAMA BARANG',        'field' => 'nama_produk'],
+            'I' => ['judul' => 'QTY',                'field' => 'qty'],
+            'J' => ['judul' => 'Hrga jual satuan',   'field' => 'per unit'],
+            'K' => ['judul' => 'COSTBOOK HPP',       'field' => 'costbook per unit'],
+            'L' => ['judul' => 'HARGA JUAL',         'field' => 'sesuai invoice'],
+            'M' => ['judul' => 'HPP',                'field' => 'harga_beli * qty'],
+            'N' => ['judul' => 'LABA/RUGI KOTOR',    'field' => 'pendapatan - hpp'],
+            'O' => ['judul' => 'PERSEN LABA/RUGI',   'field' => 'laba / pendapatan'],
         ];
 
         // Row judul
-        $sheet->setCellValue("A{$rowH1}", 'JUDUL');
-        $sheet->getStyle("A{$rowH1}")->getFont()->setBold(true);
-        // Row field
-        $sheet->setCellValue("A{$rowH2}", 'FIELD / KOLOM');
-        $sheet->getStyle("A{$rowH2}")->getFont()->setBold(true);
-
         foreach ($headers as $col => $h) {
             $sheet->setCellValue("{$col}{$rowH1}", $h['judul']);
-            $sheet->setCellValue("{$col}{$rowH2}", $h['field']);
         }
-        $sheet->getStyle("A{$rowH1}:R{$rowH1}")->applyFromArray($tableHeader);
-        $sheet->getStyle("A{$rowH2}:R{$rowH2}")->applyFromArray($tableHeader);
-        $sheet->getStyle("A{$rowH2}:R{$rowH2}")->getFill()->getStartColor()->setRGB('F2F2F2');
+        $sheet->getStyle("A{$rowH1}:O{$rowH1}")->applyFromArray($tableHeader);
 
         // Column widths
         $colWidths = [
-            'A' => 5, 'B' => 18, 'C' => 22, 'D' => 16, 'E' => 16,
-            'F' => 14, 'G' => 20, 'H' => 16, 'I' => 35, 'J' => 8,
-            'K' => 16, 'L' => 18, 'M' => 18, 'N' => 18, 'O' => 18,
-            'P' => 12, 'Q' => 18, 'R' => 14,
+            'A' => 5, 'B' => 16, 'C' => 28, 'D' => 18, 'E' => 18,
+            'F' => 22, 'G' => 16, 'H' => 35, 'I' => 8, 'J' => 16,
+            'K' => 16, 'L' => 18, 'M' => 18, 'N' => 18, 'O' => 14,
         ];
         foreach ($colWidths as $col => $w) {
             $sheet->getColumnDimension($col)->setWidth($w);
         }
 
         // Freeze pane
-        $sheet->freezePane('A6');
+        $sheet->freezePane('A5');
 
         // =========================
         // DATA
         // =========================
-        $rowNum = 6;
+        $rowNum = 5;
         $no = 1;
 
         $totalPenjualanPPN = 0;
@@ -204,63 +189,55 @@ class Report_penjualan_hpp extends Admin_Controller
 
         foreach ($rows as $row) {
             $subtotal         = (float) $row->subtotal;
-            $costbook_so      = (float) $row->costbook_so;
             $costbook_invoice = (float) $row->costbook_invoice;
             $qty              = (float) $row->qty;
 
-            $penjualan_ppn = $subtotal;                          // PENJUALAN + PPN
-            $pendapatan    = round($subtotal / 1.11, 2);         // PENDAPATAN (DPP)
-            // Fallback: jika costbook invoice kosong/0, pakai costbook SO (data lama)
-            $harga_hpp     = ($costbook_invoice > 0) ? $costbook_invoice : $costbook_so;
-            $hpp           = $harga_hpp * $qty;                   // HPP
-            $laba          = $pendapatan - $hpp;                  // LABA/RUGI KOTOR
-            $persen_hpp    = $pendapatan > 0 ? ($hpp / $pendapatan) : 0;
-            $persen_laba   = $pendapatan > 0 ? ($laba / $pendapatan) : 0;
+            $harga_hpp         = $costbook_invoice;                  // Costbook HPP dari dt.harga_beli
+            $harga_jual        = round($subtotal / 1.11, 2);         // Harga jual sesuai invoice (tanpa PPN)
+            $harga_jual_satuan = $qty > 0 ? ($harga_jual / $qty) : 0; // Harga jual per unit (tanpa PPN)
+            $costbook_hpp      = $harga_hpp;                          // Costbook HPP per unit
+            $pendapatan        = $harga_jual;                        // Pendapatan (DPP)
+            $hpp               = $harga_hpp * $qty;                   // HPP
+            $laba              = $pendapatan - $hpp;                  // LABA/RUGI KOTOR
+            $persen_laba       = $pendapatan > 0 ? ($laba / $pendapatan) : 0;
 
-            $totalPenjualanPPN += $penjualan_ppn;
+            $totalPenjualanPPN += $harga_jual;
             $totalPendapatan   += $pendapatan;
             $totalHPP          += $hpp;
             $totalLaba         += $laba;
 
             $sheet->setCellValueExplicit("A{$rowNum}", $no++, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->setCellValueExplicit("B{$rowNum}", (!empty($row->created_on) ? date('d/m/Y H:i', strtotime($row->created_on)) : ''), PHPExcel_Cell_DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("C{$rowNum}", strtoupper($row->id_invoice), PHPExcel_Cell_DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("D{$rowNum}", strtoupper($row->id_so ?? ''), PHPExcel_Cell_DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("E{$rowNum}", strtoupper($row->id_penawaran ?? ''), PHPExcel_Cell_DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("F{$rowNum}", '', PHPExcel_Cell_DataType::TYPE_STRING); // Nomor PO belum ada di database
-            $sheet->setCellValueExplicit("G{$rowNum}", strtoupper($row->id_delivery ?? ''), PHPExcel_Cell_DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("H{$rowNum}", strtoupper($row->id_produk ?? ''), PHPExcel_Cell_DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("I{$rowNum}", $row->nm_produk ?? '', PHPExcel_Cell_DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("J{$rowNum}", $qty, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->setCellValueExplicit("K{$rowNum}", $costbook_so, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->setCellValueExplicit("L{$rowNum}", $costbook_invoice, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->setCellValueExplicit("M{$rowNum}", $penjualan_ppn, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->setCellValueExplicit("N{$rowNum}", $pendapatan, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->setCellValueExplicit("O{$rowNum}", $hpp, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->setCellValueExplicit("P{$rowNum}", $persen_hpp, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->setCellValueExplicit("Q{$rowNum}", $laba, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->setCellValueExplicit("R{$rowNum}", $persen_laba, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("B{$rowNum}", strtoupper($row->id_so ?? ''), PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("C{$rowNum}", $row->nm_customer ?? '', PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("D{$rowNum}", $row->created_by ?? '', PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("E{$rowNum}", (!empty($row->created_on) ? date('d/m/Y H:i', strtotime($row->created_on)) : ''), PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("F{$rowNum}", strtoupper($row->id_invoice), PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("G{$rowNum}", strtoupper($row->id_produk ?? ''), PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("H{$rowNum}", $row->nm_produk ?? '', PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("I{$rowNum}", $qty, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("J{$rowNum}", $harga_jual_satuan, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("K{$rowNum}", $costbook_hpp, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("L{$rowNum}", $harga_jual, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("M{$rowNum}", $hpp, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("N{$rowNum}", $laba, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("O{$rowNum}", $persen_laba, PHPExcel_Cell_DataType::TYPE_NUMERIC);
 
             // Styling
-            $sheet->getStyle("A{$rowNum}:R{$rowNum}")->applyFromArray($tableBody);
+            $sheet->getStyle("A{$rowNum}:O{$rowNum}")->applyFromArray($tableBody);
 
             // Number formats
-            $sheet->getStyle("J{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
-            $sheet->getStyle("K{$rowNum}:O{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
-            $sheet->getStyle("P{$rowNum}")->getNumberFormat()->setFormatCode('0%');
-            $sheet->getStyle("Q{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
-            $sheet->getStyle("R{$rowNum}")->getNumberFormat()->setFormatCode('0%');
+            $sheet->getStyle("I{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle("J{$rowNum}:N{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle("O{$rowNum}")->getNumberFormat()->setFormatCode('0%');
 
             // Alignment
             $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("B{$rowNum}:C{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("D{$rowNum}:G{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("H{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("I{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_LEFT);
-            $sheet->getStyle("J{$rowNum}:O{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("P{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("Q{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("R{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("B{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("C{$rowNum}:D{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_LEFT);
+            $sheet->getStyle("E{$rowNum}:G{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("H{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_LEFT);
+            $sheet->getStyle("I{$rowNum}:N{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("O{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
             $rowNum++;
         }
@@ -268,30 +245,23 @@ class Report_penjualan_hpp extends Admin_Controller
         // =========================
         // TOTAL ROW
         // =========================
-        $totalPersenHpp  = $totalPendapatan > 0 ? ($totalHPP / $totalPendapatan) : 0;
         $totalPersenLaba = $totalPendapatan > 0 ? ($totalLaba / $totalPendapatan) : 0;
 
         $sheet->setCellValue("A{$rowNum}", '');
-        $sheet->mergeCells("A{$rowNum}:L{$rowNum}");
+        $sheet->mergeCells("A{$rowNum}:K{$rowNum}");
         $sheet->setCellValue("A{$rowNum}", 'TOTAL');
         $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
-        $sheet->setCellValueExplicit("M{$rowNum}", $totalPenjualanPPN, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-        $sheet->setCellValueExplicit("N{$rowNum}", $totalPendapatan, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-        $sheet->setCellValueExplicit("O{$rowNum}", $totalHPP, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-        $sheet->setCellValueExplicit("P{$rowNum}", $totalPersenHpp, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-        $sheet->setCellValueExplicit("Q{$rowNum}", $totalLaba, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-        $sheet->setCellValueExplicit("R{$rowNum}", $totalPersenLaba, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->setCellValueExplicit("L{$rowNum}", $totalPenjualanPPN, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->setCellValueExplicit("M{$rowNum}", $totalHPP, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->setCellValueExplicit("N{$rowNum}", $totalLaba, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->setCellValueExplicit("O{$rowNum}", $totalPersenLaba, PHPExcel_Cell_DataType::TYPE_NUMERIC);
 
-        $sheet->getStyle("A{$rowNum}:R{$rowNum}")->applyFromArray($styleTotalRow);
-        $sheet->getStyle("M{$rowNum}:O{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
-        $sheet->getStyle("P{$rowNum}")->getNumberFormat()->setFormatCode('0%');
-        $sheet->getStyle("Q{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
-        $sheet->getStyle("R{$rowNum}")->getNumberFormat()->setFormatCode('0%');
-        $sheet->getStyle("M{$rowNum}:O{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
-        $sheet->getStyle("P{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle("Q{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
-        $sheet->getStyle("R{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle("A{$rowNum}:O{$rowNum}")->applyFromArray($styleTotalRow);
+        $sheet->getStyle("L{$rowNum}:N{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle("O{$rowNum}")->getNumberFormat()->setFormatCode('0%');
+        $sheet->getStyle("L{$rowNum}:N{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle("O{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
         // =========================
         // Filename & Output
