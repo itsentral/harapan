@@ -1,7 +1,7 @@
 <?php
 if (!defined('BASEPATH')) exit('No direct script access allowed');
 
-class Report_penjualan_hpp_summary_model extends BF_Model
+class Report_penjualan_hpp_delivery_model extends BF_Model
 {
     public function __construct()
     {
@@ -13,15 +13,12 @@ class Report_penjualan_hpp_summary_model extends BF_Model
     }
 
     /**
-     * Server-side DataTables: Ringkasan Penjualan vs HPP di-GROUP per invoice.
-     *
-     * Tujuan: menjumlahkan HARGA JUAL dan HPP per invoice sehingga bisa
-     * dibandingkan dengan ledger/jurnal (yang penjualan & HPP-nya tergabung).
+     * Server-side DataTables: Ringkasan Penjualan vs HPP di-GROUP per delivery (surat jalan).
      *
      * Per baris detail:
      *   HARGA JUAL (DPP) = dt.subtotal / 1.11
      *   HPP              = dt.harga_beli * dt.qty
-     * Lalu di-SUM per id_invoice.
+     * Lalu di-SUM per id_delivery.
      */
     public function data_side_report()
     {
@@ -52,9 +49,9 @@ class Report_penjualan_hpp_summary_model extends BF_Model
         $sumLaba      = 0;
 
         foreach ($query->result_array() as $row) {
-            $harga_jual = (float) $row['harga_jual'];
-            $hpp        = (float) $row['hpp'];
-            $laba       = $harga_jual - $hpp;
+            $harga_jual  = (float) $row['harga_jual'];
+            $hpp         = (float) $row['hpp'];
+            $laba        = $harga_jual - $hpp;
             $persen_laba = $harga_jual > 0 ? round(($laba / $harga_jual) * 100) : 0;
 
             $sumHargaJual += $harga_jual;
@@ -63,7 +60,8 @@ class Report_penjualan_hpp_summary_model extends BF_Model
 
             $nestedData = [];
             $nestedData[] = "<div class='text-center'>{$urut}</div>";
-            $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_invoice']) . "</div>";
+            $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_delivery'] ?? '') . "</div>";
+            $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_invoice'] ?? '') . "</div>";
             $nestedData[] = "<div class='text-center'>" . strtoupper($row['id_so'] ?? '') . "</div>";
             $nestedData[] = "<div>" . ($row['nm_customer'] ?? '') . "</div>";
             $nestedData[] = "<div>" . ($row['created_by'] ?? '') . "</div>";
@@ -92,7 +90,7 @@ class Report_penjualan_hpp_summary_model extends BF_Model
     }
 
     /**
-     * Query builder untuk server-side DataTables (grouped per invoice).
+     * Query builder untuk server-side DataTables (grouped per delivery).
      */
     public function get_query_json_report(
         $like_value = null,
@@ -104,20 +102,22 @@ class Report_penjualan_hpp_summary_model extends BF_Model
         $tgl_sampai = null
     ) {
         $columns_order_by = [
-            0  => 'dt.id_invoice',
-            1  => 'dt.id_invoice',
-            2  => 'dt.id_so',
-            3  => 'i.nm_customer',
-            4  => 'i.created_by',
-            5  => 'i.created_on',
-            6  => 'jml_item',
-            7  => 'harga_jual',
-            8  => 'hpp',
-            9  => 'harga_jual',   // laba (sortir pakai harga_jual)
+            0  => 'dt.id_delivery',
+            1  => 'dt.id_delivery',
+            2  => 'id_invoice',
+            3  => 'id_so',
+            4  => 'nm_customer',
+            5  => 'created_by',
+            6  => 'created_on',
+            7  => 'jml_item',
+            8  => 'harga_jual',
+            9  => 'hpp',
+            10 => 'harga_jual',   // laba (sortir pakai harga_jual)
         ];
 
         $select = "
-            dt.id_invoice,
+            dt.id_delivery,
+            MAX(dt.id_invoice)     AS id_invoice,
             MAX(dt.id_so)          AS id_so,
             MAX(i.nm_customer)     AS nm_customer,
             MAX(i.created_by)      AS created_by,
@@ -151,45 +151,46 @@ class Report_penjualan_hpp_summary_model extends BF_Model
         $apply_search = function () use ($like_value) {
             if (!empty($like_value)) {
                 $this->db->group_start();
-                $this->db->like('dt.id_invoice', $like_value);
+                $this->db->like('dt.id_delivery', $like_value);
+                $this->db->or_like('dt.id_invoice', $like_value);
                 $this->db->or_like('dt.id_so', $like_value);
                 $this->db->or_like('i.nm_customer', $like_value);
                 $this->db->group_end();
             }
         };
 
-        // 1) totalData (jumlah invoice unik)
-        $this->db->select('COUNT(DISTINCT dt.id_invoice) AS total', false);
+        // 1) totalData (jumlah delivery unik)
+        $this->db->select('COUNT(DISTINCT dt.id_delivery) AS total', false);
         $this->db->from('tr_invoice_sales_detail dt');
         $apply_joins();
         $apply_filters();
         $totalData = (int) $this->db->get()->row()->total;
 
         // 2) totalFiltered
-        $this->db->select('COUNT(DISTINCT dt.id_invoice) AS total', false);
+        $this->db->select('COUNT(DISTINCT dt.id_delivery) AS total', false);
         $this->db->from('tr_invoice_sales_detail dt');
         $apply_joins();
         $apply_filters();
         $apply_search();
         $totalFiltered = (int) $this->db->get()->row()->total;
 
-        // 3) Data (grouped per invoice)
+        // 3) Data (grouped per delivery)
         $this->db->select($select, false);
         $this->db->from('tr_invoice_sales_detail dt');
         $apply_joins();
         $apply_filters();
         $apply_search();
-        $this->db->group_by('dt.id_invoice');
+        $this->db->group_by('dt.id_delivery');
 
         if (isset($columns_order_by[$column_order])) {
             $this->db->order_by($columns_order_by[$column_order], $column_dir);
-            // Sort sekunder: no invoice ascending
-            if ($columns_order_by[$column_order] !== 'dt.id_invoice') {
-                $this->db->order_by('dt.id_invoice', 'asc');
+            // Sort sekunder: nomor delivery ascending
+            if ($columns_order_by[$column_order] !== 'dt.id_delivery') {
+                $this->db->order_by('dt.id_delivery', 'asc');
             }
         } else {
             $this->db->order_by('created_on', 'asc');
-            $this->db->order_by('dt.id_invoice', 'asc');
+            $this->db->order_by('dt.id_delivery', 'asc');
         }
 
         if ($limit_length != -1) {
@@ -206,13 +207,14 @@ class Report_penjualan_hpp_summary_model extends BF_Model
     }
 
     /**
-     * Ambil semua data (grouped per invoice) tanpa paging untuk export Excel.
+     * Ambil semua data (grouped per delivery) tanpa paging untuk export Excel.
      */
     public function get_export_report($like_value = null, $tgl_dari = null, $tgl_sampai = null)
     {
         $sql = "
             SELECT
-                dt.id_invoice,
+                dt.id_delivery,
+                MAX(dt.id_invoice)     AS id_invoice,
                 MAX(dt.id_so)          AS id_so,
                 MAX(i.nm_customer)     AS nm_customer,
                 MAX(i.created_by)      AS created_by,
@@ -238,13 +240,14 @@ class Report_penjualan_hpp_summary_model extends BF_Model
             $binds[] = $tgl_sampai;
         }
         if (!empty($like_value)) {
-            $sql .= " AND (dt.id_invoice LIKE ? OR dt.id_so LIKE ? OR i.nm_customer LIKE ?)";
+            $sql .= " AND (dt.id_delivery LIKE ? OR dt.id_invoice LIKE ? OR dt.id_so LIKE ? OR i.nm_customer LIKE ?)";
+            $binds[] = "%{$like_value}%";
             $binds[] = "%{$like_value}%";
             $binds[] = "%{$like_value}%";
             $binds[] = "%{$like_value}%";
         }
 
-        $sql .= " GROUP BY dt.id_invoice ORDER BY MAX(i.created_on) ASC, dt.id_invoice ASC";
+        $sql .= " GROUP BY dt.id_delivery ORDER BY MAX(i.created_on) ASC, dt.id_delivery ASC";
 
         return $this->db->query($sql, $binds)->result();
     }
