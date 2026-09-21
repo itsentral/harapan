@@ -116,21 +116,21 @@ class Report_penjualan_hpp extends Admin_Controller
         $sheet->setCellValue('A1', 'Report Penjualan vs HPP');
         $sheet->getStyle('A1')->applyFromArray($styleTitle);
 
-        // Row 2: PERIODE
-        $sheet->setCellValue('A2', 'PERIODE');
-        $sheet->getStyle('A2')->applyFromArray($styleSubTitle);
-
+        // Row 2: PERIODE (judul)
         $periodeText = '';
         if (!empty($tgl_dari) && !empty($tgl_sampai)) {
-            $periodeText = date('d/m/Y', strtotime($tgl_dari)) . '  s/d  ' . date('d/m/Y', strtotime($tgl_sampai));
+            $periodeText = 'Periode ' . date('d/m/Y', strtotime($tgl_dari)) . ' s/d ' . date('d/m/Y', strtotime($tgl_sampai));
         } elseif (!empty($tgl_dari)) {
-            $periodeText = 'Mulai ' . date('d/m/Y', strtotime($tgl_dari));
+            $periodeText = 'Periode Mulai ' . date('d/m/Y', strtotime($tgl_dari));
         } elseif (!empty($tgl_sampai)) {
-            $periodeText = 'Sampai ' . date('d/m/Y', strtotime($tgl_sampai));
+            $periodeText = 'Periode Sampai ' . date('d/m/Y', strtotime($tgl_sampai));
         } else {
-            $periodeText = 'Semua';
+            $periodeText = 'Periode: Semua';
         }
-        $sheet->setCellValue('B2', $periodeText);
+        $sheet->mergeCells('A2:O2');
+        $sheet->setCellValue('A2', $periodeText);
+        $sheet->getStyle('A2')->applyFromArray($styleTitle);
+        $sheet->getStyle('A2')->getFont()->setSize(11)->getColor()->setRGB('000000');
 
         // Row 3: kosong
         // =========================
