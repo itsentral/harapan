@@ -598,6 +598,11 @@ class Invoice_produk extends Admin_Controller
 				$total_harga_beli_baris = $harga_beli * $item_details->qty_delivery;
 				$sum_harga_beli += $total_harga_beli_baris;
 
+				// DPP = harga exclude PPN (harga / 1.11). Cast (float) untuk aman
+				// terhadap NULL / nilai non-numerik dari hasil join DB.
+				$dpp = (float) $item_details->harga_penawaran / 1.11;
+				$subtotal_dpp = $dpp * (float) $item_details->qty_delivery;
+
 				$data_insert_detail[] = [
 					'id_invoice' => $id_invoice,
 					'id_so' => $post['no_so'],
@@ -609,8 +614,10 @@ class Invoice_produk extends Admin_Controller
 					'qty' => $item_details->qty_delivery,
 					'uom' => $item_details->uom,
 					'harga' => $item_details->harga_penawaran,
+					'dpp' => $dpp,
 					'harga_beli' => $harga_beli,
 					'disc' => $nilai_disc,
+					'subtotal_dpp' => $subtotal_dpp,
 					'subtotal' => $subtotal,
 					'created_by' => $this->auth->user_id(),
 					'created_on' => date('Y-m-d')
