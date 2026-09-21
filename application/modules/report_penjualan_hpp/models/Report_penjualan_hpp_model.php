@@ -219,7 +219,7 @@ class Report_penjualan_hpp_model extends BF_Model
         if (isset($columns_order_by[$column_order])) {
             $this->db->order_by($columns_order_by[$column_order], $column_dir);
         } else {
-            $this->db->order_by('i.created_on', 'desc');
+            $this->db->order_by('i.created_on', 'asc');
         }
 
         if ($limit_length != -1) {
@@ -278,7 +278,7 @@ class Report_penjualan_hpp_model extends BF_Model
             $binds[] = "%{$like_value}%";
         }
 
-        $sql .= " ORDER BY i.created_on DESC, dt.id_invoice ASC";
+        $sql .= " ORDER BY i.created_on ASC, dt.id_invoice ASC";
 
         return $this->db->query($sql, $binds)->result();
     }

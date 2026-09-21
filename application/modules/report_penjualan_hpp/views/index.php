@@ -124,7 +124,7 @@ function initDataTable() {
         searching: true,
         responsive: false,
         scrollX: true,
-        aaSorting: [[4, "desc"]],
+        aaSorting: [[4, "asc"]],
         columnDefs: [
             { targets: 'no-sort', orderable: false }
         ],

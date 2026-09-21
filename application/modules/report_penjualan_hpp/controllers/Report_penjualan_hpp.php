@@ -139,7 +139,6 @@ class Report_penjualan_hpp extends Admin_Controller
         // Row 5: Header (FIELD / KOLOM)
         // =========================
         $rowH1 = 4;
-        $rowH2 = 5;
 
         $headers = [
             'A' => ['judul' => 'No',                 'field' => ''],
@@ -160,19 +159,10 @@ class Report_penjualan_hpp extends Admin_Controller
         ];
 
         // Row judul
-        $sheet->setCellValue("A{$rowH1}", 'JUDUL');
-        $sheet->getStyle("A{$rowH1}")->getFont()->setBold(true);
-        // Row field
-        $sheet->setCellValue("A{$rowH2}", 'FIELD / KOLOM');
-        $sheet->getStyle("A{$rowH2}")->getFont()->setBold(true);
-
         foreach ($headers as $col => $h) {
             $sheet->setCellValue("{$col}{$rowH1}", $h['judul']);
-            $sheet->setCellValue("{$col}{$rowH2}", $h['field']);
         }
         $sheet->getStyle("A{$rowH1}:O{$rowH1}")->applyFromArray($tableHeader);
-        $sheet->getStyle("A{$rowH2}:O{$rowH2}")->applyFromArray($tableHeader);
-        $sheet->getStyle("A{$rowH2}:O{$rowH2}")->getFill()->getStartColor()->setRGB('F2F2F2');
 
         // Column widths
         $colWidths = [
@@ -185,12 +175,12 @@ class Report_penjualan_hpp extends Admin_Controller
         }
 
         // Freeze pane
-        $sheet->freezePane('A6');
+        $sheet->freezePane('A5');
 
         // =========================
         // DATA
         // =========================
-        $rowNum = 6;
+        $rowNum = 5;
         $no = 1;
 
         $totalPenjualanPPN = 0;
