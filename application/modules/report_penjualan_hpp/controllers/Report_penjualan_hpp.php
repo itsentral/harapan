@@ -110,12 +110,11 @@ class Report_penjualan_hpp extends Admin_Controller
         ];
 
         // =========================
-        // Row 1: NAMA TABEL
+        // Row 1: JUDUL REPORT
         // =========================
-        $sheet->setCellValue('A1', 'NAMA TABEL');
-        $sheet->getStyle('A1')->applyFromArray($styleSubTitle);
-        $sheet->setCellValue('B1', 'tr_invoice_sales_detail');
-        $sheet->getStyle('B1')->getFont()->setBold(true);
+        $sheet->mergeCells('A1:O1');
+        $sheet->setCellValue('A1', 'Report Penjualan vs HPP');
+        $sheet->getStyle('A1')->applyFromArray($styleTitle);
 
         // Row 2: PERIODE
         $sheet->setCellValue('A2', 'PERIODE');
