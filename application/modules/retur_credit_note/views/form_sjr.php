@@ -118,7 +118,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- Baris 1: Kredit Persediaan Barang Warehouse -->
+                        <!-- Baris 1: Debit Persediaan Barang Warehouse (barang fisik balik ke gudang) -->
                         <tr bgcolor="#DCDCDC">
                             <td>
                                 <input type="date" name="tgl_jurnal[]" class="form-control" value="<?= date('Y-m-d') ?>" readonly>
@@ -141,7 +141,7 @@
                                 <input type="text" class="form-control text-right" id="kredit_row1_display" value="0" readonly>
                             </td>
                         </tr>
-                        <!-- Baris 2: Debit HPP -->
+                        <!-- Baris 2: Kredit HPP (membalik beban HPP yang batal) -->
                         <tr bgcolor="#DCDCDC">
                             <td>
                                 <input type="date" name="tgl_jurnal[]" class="form-control" value="<?= date('Y-m-d') ?>" readonly>
@@ -232,17 +232,17 @@
 
             var formatted = totalHargaBeli.toLocaleString('id-ID');
 
-            // Baris 1: 1104-01-01 Persediaan Barang Warehouse → Kredit
-            $('#debet_row1').val(0);
-            $('#debet_row1_display').val('0');
-            $('#kredit_row1').val(totalHargaBeli);
-            $('#kredit_row1_display').val(formatted);
+            // Baris 1: 1104-01-01 Persediaan Barang Warehouse → Debit (barang fisik balik ke gudang)
+            $('#debet_row1').val(totalHargaBeli);
+            $('#debet_row1_display').val(formatted);
+            $('#kredit_row1').val(0);
+            $('#kredit_row1_display').val('0');
 
-            // Baris 2: 5101-01-01 HPP → Debit
-            $('#debet_row2').val(totalHargaBeli);
-            $('#debet_row2_display').val(formatted);
-            $('#kredit_row2').val(0);
-            $('#kredit_row2_display').val('0');
+            // Baris 2: 5101-01-01 HPP → Kredit (membalik beban HPP yang batal)
+            $('#debet_row2').val(0);
+            $('#debet_row2_display').val('0');
+            $('#kredit_row2').val(totalHargaBeli);
+            $('#kredit_row2_display').val(formatted);
 
             // Total
             $('#total_debet_display').val(formatted);
