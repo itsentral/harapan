@@ -214,8 +214,8 @@ class Report_margin_achievement extends Admin_Controller
             '2. % Ach Omset = Realisasi Omset / Target Omset.',
             '3. DPP = Realisasi Omset (Rp) / 1,11.',
             '4. Target Margin % diambil dari Master Target Margin per Sales.',
-            '5. Actual Margin (%) = (Realisasi Omset (Revenue) - HPP (Harga Pokok Penjualan/COGS)) aktual per baris invoice / Realisasi Omset.',
-            '6. Realisasi Margin (Rp) = DPP x Actual Margin (%).',
+            '5. Revenue (DPP) per baris invoice = subtotal / 1,11; HPP = qty x harga beli beku (costbook invoice/surat jalan). Actual Margin (%) = (Revenue - HPP) / DPP.',
+            '6. Realisasi Margin (Rp) = DPP x Actual Margin (%) = Revenue - HPP (nilai margin riil, selaras jurnal).',
             '7. % Ach Margin = Actual Margin (%) / Target Margin %.',
             '8. Status: >=100% Tercapai, 90-99,9% Mendekati Target, <90% Belum Tercapai.',
         ];

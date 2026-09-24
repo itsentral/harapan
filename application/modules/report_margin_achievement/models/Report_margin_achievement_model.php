@@ -22,9 +22,11 @@ class Report_margin_achievement_model extends BF_Model
      * - Target Margin (%)  : tabel master_margin (id_sales, tahun, bulan)
      * - DPP                : Realisasi Omset (Rp) / 1,11
      * - Margin mentah (dari HPP aktual): Revenue - HPP (Harga Pokok Penjualan / COGS), dihitung per
-     *   baris invoice dari tr_invoice_sales_detail.subtotal dikurangi (qty x sales_order_detail.harga_beli),
-     *   di-join lewat surat_jalan_detail.
-     * - Actual Margin (%)  : margin mentah (dari HPP aktual) / Realisasi Omset
+     *   baris invoice: Revenue = tr_invoice_sales_detail.subtotal / 1,11 (subtotal termasuk PPN,
+     *   dibagi 1,11 agar setara DPP/PENDAPATAN di jurnal), HPP = qty x harga beli beku
+     *   (COALESCE(dt.harga_beli, surat_jalan_detail.costbook, sales_order_detail.harga_beli)).
+     *   Nilai ini konsisten dengan jurnal invoice (HPP 5101-01-01) dan report_penjualan_hpp.
+     * - Actual Margin (%)  : margin mentah (dari HPP aktual) / Revenue (basis DPP)
      * - Realisasi Margin (Rp) (ditampilkan) : DPP x Actual Margin (%), sesuai formula resmi di Excel.
      *
      * @param int $bulan_no 1-12
@@ -93,12 +95,21 @@ class Report_margin_achievement_model extends BF_Model
         // (cost snapshot saat SO dibuat), disambungkan lewat surat_jalan_detail.
         // Pola JOIN ini sudah dipakai di modul retur_credit_note untuk jurnal HPP retur.
         // =========================
+        // Revenue: dt.subtotal adalah nilai TERMASUK PPN (bruto = harga x qty), jadi
+        // dibagi 1.11 untuk mendapatkan Revenue/DPP yang selaras dengan jurnal
+        // (PENDAPATAN 4101-01-01) dan report_penjualan_hpp.
+        //
+        // HPP: pakai dt.harga_beli (costbook yang DIBEKUKAN saat invoice dibuat, sama
+        // dengan nilai yang dijurnalkan Debit HPP / Kredit Persediaan). Untuk data lama
+        // yang belum punya dt.harga_beli (invoice sebelum fitur costbook), fallback
+        // bertingkat: costbook di surat jalan, lalu sales_order_detail.harga_beli,
+        // supaya HPP tidak menjadi 0. Join sjd+sod hanya dipakai untuk fallback ini.
         $sqlMargin = "
             SELECT
                 c.id_karyawan,
-                SUM(dt.subtotal) AS revenue,
-                SUM(dt.qty * IFNULL(sod.harga_beli, 0)) AS hpp,
-                SUM(dt.subtotal - (dt.qty * IFNULL(sod.harga_beli, 0))) AS realisasi_margin_rp
+                SUM(dt.subtotal / 1.11) AS revenue,
+                SUM(dt.qty * COALESCE(NULLIF(dt.harga_beli, 0), NULLIF(sjd.costbook, 0), sod.harga_beli, 0)) AS hpp,
+                SUM((dt.subtotal / 1.11) - (dt.qty * COALESCE(NULLIF(dt.harga_beli, 0), NULLIF(sjd.costbook, 0), sod.harga_beli, 0))) AS realisasi_margin_rp
             FROM tr_invoice_sales_detail dt
             INNER JOIN tr_invoice_sales i
                 ON i.id_invoice = dt.id_invoice
@@ -162,11 +173,14 @@ class Report_margin_achievement_model extends BF_Model
 
             $targetMarginRp = $targetOmset * ($targetMarginPct / 100);
 
-            // Margin mentah dari data HPP aktual per baris invoice (Revenue - HPP, lihat query D2)
+            // Margin mentah dari data HPP aktual per baris invoice = Revenue(DPP) - HPP (lihat query D2)
             $realisasiMarginRpRaw = $realisasiMarginRpMap[$id] ?? 0;
 
-            // Actual Margin (%) = margin mentah (dari HPP aktual) / Realisasi Omset
-            $marginPctThdOmset = $realisasiOmset > 0 ? ($realisasiMarginRpRaw / $realisasiOmset) : 0;
+            // Actual Margin (%) = margin mentah / DPP.
+            // Penyebut memakai DPP (bukan Realisasi Omset yang masih ber-PPN) agar
+            // sepadan dengan pembilang: margin mentah di query D2 dihitung dari
+            // Revenue basis DPP (subtotal / 1,11).
+            $marginPctThdOmset = $dpp > 0 ? ($realisasiMarginRpRaw / $dpp) : 0;
 
             // Realisasi Margin (Rp) yang DITAMPILKAN = DPP x Actual Margin (%)
             $realisasiMarginRp = $dpp * $marginPctThdOmset;
@@ -208,9 +222,9 @@ class Report_margin_achievement_model extends BF_Model
         // Target Margin % gabungan (weighted average) = Total Target Margin Rp / Total Target Omset
         $totalTargetMarginPct = $totalTargetOmset > 0 ? ($totalTargetMarginRp / $totalTargetOmset) : 0;
         $totalDpp = $totalRealisasiOmset / 1.11;
-        // Actual Margin (%) total = Total margin mentah (raw, dari HPP aktual) / Total Realisasi Omset
-        // (konsisten dengan per-row yang juga pakai margin mentah / Realisasi Omset)
-        $totalMarginPctThdOmset = $totalRealisasiOmset > 0 ? ($totalRealisasiMarginRpRaw / $totalRealisasiOmset) : 0;
+        // Actual Margin (%) total = Total margin mentah (raw, dari HPP aktual) / Total DPP
+        // (konsisten dengan per-row yang juga pakai margin mentah / DPP)
+        $totalMarginPctThdOmset = $totalDpp > 0 ? ($totalRealisasiMarginRpRaw / $totalDpp) : 0;
         // Realisasi Margin (Rp) total yang DITAMPILKAN = Total DPP x Actual Margin (%) total
         $totalRealisasiMarginRpDisplay = $totalDpp * $totalMarginPctThdOmset;
 
