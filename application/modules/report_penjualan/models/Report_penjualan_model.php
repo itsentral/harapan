@@ -564,17 +564,17 @@ class Report_penjualan_model extends BF_Model
 
     public function get_export_product($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
     {
-        $this->db->select('
-        i.created_on,
+        // NOTE: rumus & grouping harus identik dengan get_query_json_product()
+        // supaya angka di grid (index) dan di export Excel selalu sama.
+        $this->db->select("
         d.nm_produk AS nama_barang,
         d.uom AS satuan,
         SUM(d.qty) AS qty_total,
         SUM(d.subtotal) AS penjualan_total
-    ');
+    ", false);
         $this->db->from('tr_invoice_sales i');
         $this->db->join('tr_invoice_sales_detail d', 'd.id_invoice = i.id_invoice', 'inner');
         $this->db->where('i.is_cancel', null);
-        $this->db->group_by('i.id_customer');
 
         // filter tanggal (created_on)
         if (!empty($tgl_dari)) {
@@ -592,7 +592,9 @@ class Report_penjualan_model extends BF_Model
             $this->db->group_end();
         }
 
-        $this->db->order_by('i.created_on', 'desc');
+        $this->db->group_by('d.nm_produk, d.uom');
+        $this->db->order_by('d.nm_produk', 'asc');
+
         return $this->db->get()->result();
     }
 
