@@ -526,6 +526,47 @@ class Spk_delivery extends Admin_Controller
       return;
     }
 
+    // ========== PRELOAD: Mapping qty_delivery per no_delivery ==========
+    // Diperlukan untuk membedakan status 'Closed' vs 'Partial SPK'
+    // saat status DB = 'DELIVERY CONFIRMED', agar label sama dengan tampilan grid.
+    $no_deliveries = array();
+    foreach ($rows as $row) {
+      $no_deliveries[] = $row->no_delivery;
+    }
+
+    $qty_map = array();
+    if (!empty($no_deliveries)) {
+      $qtys = $this->db->select('no_delivery, SUM(qty_delivery) as qty_delivery')
+        ->from('spk_delivery_detail')
+        ->where_in('no_delivery', $no_deliveries)
+        ->group_by('no_delivery')
+        ->get()->result_array();
+
+      foreach ($qtys as $rowQty) {
+        $qty_map[$rowQty['no_delivery']] = $rowQty['qty_delivery'];
+      }
+    }
+
+    // ========== PRELOAD: Mapping qty_order per no_so ==========
+    $no_sos = array();
+    foreach ($rows as $row) {
+      $no_sos[] = $row->no_so;
+    }
+    $no_sos = array_unique(array_filter($no_sos));
+
+    $qty_order_map = array();
+    if (!empty($no_sos)) {
+      $orders = $this->db->select('no_so, SUM(qty_order) as qty_order')
+        ->from('sales_order_detail')
+        ->where_in('no_so', $no_sos)
+        ->group_by('no_so')
+        ->get()->result_array();
+
+      foreach ($orders as $rowOrder) {
+        $qty_order_map[$rowOrder['no_so']] = $rowOrder['qty_order'];
+      }
+    }
+
     set_time_limit(0);
     ini_set('memory_limit', '512M');
     $this->load->library('PHPExcel');
@@ -562,7 +603,32 @@ class Spk_delivery extends Admin_Controller
         $sheet->setCellValueExplicit('F' . $r, $tgl, PHPExcel_Cell_DataType::TYPE_NUMERIC);
         $sheet->getStyle('F' . $r)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
       }
-      $sheet->setCellValueExplicit('G' . $r, (string)$row->status, PHPExcel_Cell_DataType::TYPE_STRING);
+
+      // ========== Mapping status agar sama dengan tampilan grid ==========
+      $qty_delivery = isset($qty_map[$row->no_delivery]) ? $qty_map[$row->no_delivery] : 0;
+      $qty_order    = isset($qty_order_map[$row->no_so]) ? $qty_order_map[$row->no_so] : 0;
+
+      $status = 'Unknown';
+      switch ($row->status) {
+        case 'NOT YET DELIVER':
+          $status = 'Waiting Loading';
+          break;
+        case 'LOADING':
+          $status = 'On Loading';
+          break;
+        case 'ON DELIVER':
+          $status = 'Delivery';
+          break;
+        case 'DELIVERY CONFIRMED':
+          if ($qty_order == $qty_delivery) {
+            $status = 'Closed';
+          } elseif ($qty_order > $qty_delivery && $qty_delivery > 0) {
+            $status = 'Partial SPK';
+          }
+          break;
+      }
+
+      $sheet->setCellValueExplicit('G' . $r, (string)$status, PHPExcel_Cell_DataType::TYPE_STRING);
       $r++;
     }
 

@@ -84,7 +84,7 @@ class Penerimaan extends Admin_Controller
             i.ppn,
             i.nilai_ppn,
             i.grand_total,
-			(i.grand_total - IFNULL(bayar.total_bayar, 0)) as sisa_tagihan,
+			(i.grand_total - IFNULL(bayar.total_bayar, 0) - IFNULL(cn.total_nilai_cn, 0)) as sisa_tagihan,
             DATE_FORMAT(i.created_on, "%d/%b/%Y") as tgl_inv,
             DATE_FORMAT(i.tgl_so, "%d/%b/%Y") as tgl_so,
             c.name_customer,
@@ -102,8 +102,11 @@ class Penerimaan extends Admin_Controller
          GROUP BY no_invoice) bayar', 'bayar.no_invoice = i.id_invoice', 'left')
             ->join('(SELECT id_invoice, COUNT(*) as jumlah_cn, SUM(total_harga) as total_nilai_cn
          FROM tr_retur
+         WHERE status = 2
          GROUP BY id_invoice) cn', 'cn.id_invoice = i.id_invoice', 'left')
-            ->where('(i.grand_total > IFNULL(bayar.total_bayar, 0))', null, false)
+            // Sisa tagihan setelah dikurangi pembayaran DAN credit note final harus > 0.
+            // Invoice yang sudah diretur penuh (CN = grand_total) otomatis tersembunyi.
+            ->where('(i.grand_total - IFNULL(bayar.total_bayar, 0) - IFNULL(cn.total_nilai_cn, 0)) > 0', null, false)
             ->order_by('i.created_on', 'ASC')
             ->get()
             ->result_array();

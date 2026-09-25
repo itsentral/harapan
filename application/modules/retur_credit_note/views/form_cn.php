@@ -23,6 +23,9 @@ $nilai_inv_baru = $grand_total_inv - $grand_total_retur;
             <input type="hidden" name="id_invoice" value="<?= $retur['id_invoice'] ?>">
             <input type="hidden" name="grand_total_asli" id="grand_total_asli" value="<?= $grand_total_inv ?>">
             <input type="hidden" name="total_sudah_bayar" value="<?= $total_sudah_bayar ?>">
+            <input type="hidden" id="subtotal_invoice" value="<?= $subtotal_invoice ?>">
+            <input type="hidden" id="pendapatan_invoice" value="<?= $pendapatan_invoice ?>">
+            <input type="hidden" id="ppn_invoice" value="<?= $ppn_invoice ?>">
 
             <div class="row">
                 <div class="col-md-6">
@@ -133,32 +136,32 @@ $nilai_inv_baru = $grand_total_inv - $grand_total_retur;
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- Baris 1: Debit Piutang Dagang -->
+                        <!-- Baris 1: Kredit Piutang Dagang (piutang berkurang) -->
                         <tr bgcolor="#DCDCDC">
                             <td><input type="date" class="form-control" value="<?= date('Y-m-d') ?>" readonly></td>
                             <td><input type="text" class="form-control" value="JV" readonly></td>
                             <td><input type="text" class="form-control" value="1102-01-01" readonly></td>
                             <td><input type="text" class="form-control" value="Piutang Dagang" readonly></td>
-                            <td><input type="text" class="form-control text-right" id="jrn_piutang_display" value="0" readonly></td>
                             <td><input type="text" class="form-control text-right" value="0" readonly></td>
+                            <td><input type="text" class="form-control text-right" id="jrn_piutang_display" value="0" readonly></td>
                         </tr>
-                        <!-- Baris 2: Kredit Retur Penjualan -->
+                        <!-- Baris 2: Debit Retur Penjualan (contra-revenue) -->
                         <tr bgcolor="#DCDCDC">
                             <td><input type="date" class="form-control" value="<?= date('Y-m-d') ?>" readonly></td>
                             <td><input type="text" class="form-control" value="JV" readonly></td>
                             <td><input type="text" class="form-control" value="4102-01-01" readonly></td>
                             <td><input type="text" class="form-control" value="Retur Penjualan" readonly></td>
-                            <td><input type="text" class="form-control text-right" value="0" readonly></td>
                             <td><input type="text" class="form-control text-right" id="jrn_retur_display" value="0" readonly></td>
+                            <td><input type="text" class="form-control text-right" value="0" readonly></td>
                         </tr>
-                        <!-- Baris 3: Kredit PPN Keluaran -->
+                        <!-- Baris 3: Debit PPN Keluaran (kewajiban PPN berkurang) -->
                         <tr bgcolor="#DCDCDC">
                             <td><input type="date" class="form-control" value="<?= date('Y-m-d') ?>" readonly></td>
                             <td><input type="text" class="form-control" value="JV" readonly></td>
                             <td><input type="text" class="form-control" value="2103-01-01" readonly></td>
                             <td><input type="text" class="form-control" value="PPN Keluaran" readonly></td>
-                            <td><input type="text" class="form-control text-right" value="0" readonly></td>
                             <td><input type="text" class="form-control text-right" id="jrn_ppn_display" value="0" readonly></td>
+                            <td><input type="text" class="form-control text-right" value="0" readonly></td>
                         </tr>
                         <!-- Total -->
                         <tr bgcolor="#DCDCDC">
@@ -185,29 +188,42 @@ $nilai_inv_baru = $grand_total_inv - $grand_total_retur;
         hitungJurnalCN();
 
         function hitungJurnalCN() {
-            // Total Retur = grand_total (qty * harga include PPN) → Piutang Dagang debit
+            // Total Retur = grand_total (qty * harga include PPN) → Piutang Dagang KREDIT
             var totalRetur = parseFloat($('#grand_total').val()) || 0;
 
-            // Retur Penjualan = SUM(qty_retur * harga_beli)
-            var totalReturPenjualan = 0;
-            $('.harga_beli_raw').each(function() {
-                var $td = $(this).closest('td');
-                var qty = parseFloat($td.find('.qty_retur_raw').val()) || 0;
-                var hargaBeli = parseFloat($(this).val()) || 0;
-                totalReturPenjualan += qty * hargaBeli;
-            });
+            // Retur Penjualan (4102-01-01) & PPN Keluaran (2103-01-01) TIDAK dihitung ulang
+            // dengan rumus 11/12 — itu bisa mismatch dengan nilai asli invoice karena rounding
+            // (rumus invoice membagi 1.11 dari subtotal SEBELUM PPN, sedangkan totalRetur di
+            // sini sudah setara subtotal itu sendiri). Sebagai gantinya, nilai Pendapatan
+            // Penjualan & PPN Keluaran yang SUDAH dijurnal saat invoice dibuat diproporsikan
+            // sesuai rasio nilai retur terhadap subtotal invoice — identik dengan yang dihitung
+            // di save_cn()/_buat_jurnal_credit_note() pada controller.
+            var subtotalInvoice = parseFloat($('#subtotal_invoice').val()) || 0;
+            var pendapatanInvoice = parseFloat($('#pendapatan_invoice').val()) || 0;
+            var ppnInvoice = parseFloat($('#ppn_invoice').val()) || 0;
 
-            // PPN Keluaran = selisih
-            var ppnKeluaran = totalRetur - totalReturPenjualan;
+            var returPenjualan = 0;
+            var ppnKeluaran = 0;
+            if (subtotalInvoice > 0 && pendapatanInvoice > 0) {
+                var rasio = totalRetur / subtotalInvoice;
+                returPenjualan = pendapatanInvoice * rasio;
+                ppnKeluaran = ppnInvoice * rasio;
+            } else {
+                // Fallback: invoice lama yang jurnalnya tidak ditemukan
+                var excludeppn = totalRetur / 1.11;
+                var dpp = (excludeppn * 11) / 12;
+                ppnKeluaran = (dpp * 12) / 100;
+                returPenjualan = excludeppn;
+            }
 
             var fmt = function(n) {
                 return n.toLocaleString('id-ID');
             };
 
             $('#jrn_piutang_display').val(fmt(totalRetur));
-            $('#jrn_retur_display').val(fmt(totalReturPenjualan));
+            $('#jrn_retur_display').val(fmt(returPenjualan));
             $('#jrn_ppn_display').val(fmt(ppnKeluaran));
-            $('#jrn_total_debet_display').val(fmt(totalRetur));
+            $('#jrn_total_debet_display').val(fmt(returPenjualan + ppnKeluaran));
             $('#jrn_total_kredit_display').val(fmt(totalRetur));
         }
 
