@@ -35,15 +35,21 @@
                     $grand_total_target = array_fill(1, 12, 0);
                     $grand_total_realisasi = array_fill(1, 12, 0);
 
+                    // Grand total setor bank per bulan (hanya tampil di Total Cabang, tidak per sales)
                     $grand_total_setor = array_fill(1, 12, 0);
+                    foreach ($sales as $s):
+                        foreach ($bulan as $b):
+                            $bln_no = (int)$b['bulan_no'];
+                            $grand_total_setor[$bln_no] += $rekap_setor[$s['id']][$bln_no] ?? 0;
+                        endforeach;
+                    endforeach;
 
                     foreach ($sales as $s):
                         $row_t_target = 0;
                         $row_t_realisasi = 0;
-                        $row_t_setor = 0;
                     ?>
                         <tr>
-                            <td rowspan="3" style="vertical-align:middle; font-weight:bold;"><?= ucwords($s['nm_karyawan']) ?></td>
+                            <td rowspan="2" style="vertical-align:middle; font-weight:bold;"><?= ucwords($s['nm_karyawan']) ?></td>
                             <td>Target Penagihan</td>
                             <?php foreach ($bulan as $b):
                                 $bln_no = (int)$b['bulan_no'];
@@ -88,23 +94,6 @@
                             <?php endif;
                             endforeach; ?>
                             <td class="text-right"><b><?= number_format($row_t_realisasi) ?></b></td>
-                        </tr>
-                        <tr>
-                            <td>Realisasi Setor Bank</td>
-                            <?php foreach ($bulan as $b):
-                                $bln_no = (int)$b['bulan_no'];
-                                if ($tahun_pilih == $tahun_sekarang && $bln_no > $bulan_sekarang):
-                            ?>
-                                    <td class="text-center text-muted">-</td>
-                                <?php else:
-                                    $val = $rekap_setor[$s['id']][$bln_no] ?? 0;
-                                    $row_t_setor += $val;
-                                    $grand_total_setor[$bln_no] += $val;
-                                ?>
-                                    <td class="text-right"><?= number_format($val) ?></td>
-                            <?php endif;
-                            endforeach; ?>
-                            <td class="text-right"><b><?= number_format($row_t_setor) ?></b></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
