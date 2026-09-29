@@ -58,11 +58,17 @@ class Report_penagihan extends Admin_Controller
             $rekap_realisasi[$row['id_sales']][$row['bulan']] = (float)$row['total_realisasi'];
         }
 
+        // 4. Realisasi Setor Bank (jumlah yang benar-benar disetor per sales per bulan,
+        // berdasarkan tanggal setor kasir). Diambil langsung dari tr_setor_bank_detail
+        // tanpa join ke payment_detail untuk menghindari dobel-hitung.
+        $rekap_setor = $this->hitung_rekap_setor($tahun);
+
         $data = [
             'sales' => $sales,
             'bulan' => $bulan,
             'rekap_target' => $rekap_target,
             'rekap_realisasi' => $rekap_realisasi,
+            'rekap_setor' => $rekap_setor,
             'tahun_pilih' => $tahun,
             'bulan_sekarang' => $bulan_sekarang,
             'tahun_sekarang' => $tahun_sekarang,
@@ -104,6 +110,9 @@ class Report_penagihan extends Admin_Controller
             $rekap_realisasi[$row['id_sales']][$row['bulan']] = (float)$row['total_realisasi'];
         }
 
+        // 3b. Realisasi Setor Bank (berdasarkan tgl_setor_kasir), dari tr_setor_bank_detail
+        $rekap_setor = $this->hitung_rekap_setor($tahun);
+
         // 4. Setup PHPExcel
         set_time_limit(0);
         ini_set('memory_limit', '1024M');
@@ -142,11 +151,12 @@ class Report_penagihan extends Admin_Controller
         $r = $rowHeader + 1;
         $grand_total_target = array_fill(1, 12, 0);
         $grand_total_realisasi = array_fill(1, 12, 0);
+        $grand_total_setor = array_fill(1, 12, 0);
 
         foreach ($sales as $s) {
-            // Merge Nama Sales
+            // Merge Nama Sales (3 baris: Target, Realisasi Tagihan, Realisasi Setor Bank)
             $sheet->setCellValue('A' . $r, strtoupper($s['nm_karyawan']));
-            $sheet->mergeCells('A' . $r . ':A' . ($r + 1));
+            $sheet->mergeCells('A' . $r . ':A' . ($r + 2));
             $sheet->getStyle('A' . $r)->getAlignment()->setVertical(PHPExcel_Style_Alignment::VERTICAL_CENTER);
 
             // Baris Target Penagihan (Target)
@@ -195,13 +205,36 @@ class Report_penagihan extends Admin_Controller
             $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
             $sheet->getStyle('O' . $r)->getFont()->setBold(true);
 
+            // Baris Realisasi Setor Bank
+            $r++;
+            $sheet->setCellValue('B' . $r, 'Realisasi Setor Bank');
+            $row_t_setor = 0;
+            $c = 'C';
+            foreach ($bulan as $b) {
+                $bln_no = (int)$b['bulan_no'];
+                if ($tahun == $tahun_sekarang && $bln_no > $bulan_sekarang) {
+                    $sheet->setCellValue($c . $r, '-');
+                    $sheet->getStyle($c . $r)->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+                } else {
+                    $val = (float)($rekap_setor[$s['id']][$bln_no] ?? 0);
+                    $sheet->setCellValueExplicit($c . $r, $val, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+                    $sheet->getStyle($c . $r)->getNumberFormat()->setFormatCode('#,##0');
+                    $row_t_setor += $val;
+                    $grand_total_setor[$bln_no] += $val;
+                }
+                $c++;
+            }
+            $sheet->setCellValueExplicit('O' . $r, $row_t_setor, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('O' . $r)->getFont()->setBold(true);
+
             $r++;
         }
 
-        // 7. Baris Target Cabang (Grand Total)
+        // 7. Baris Target Cabang (Grand Total) - 3 baris
         $sheet->setCellValue('A' . $r, 'Target Cabang');
-        $sheet->mergeCells('A' . $r . ':A' . ($r + 1));
-        $sheet->getStyle('A' . $r . ':O' . ($r + 1))->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
+        $sheet->mergeCells('A' . $r . ':A' . ($r + 2));
+        $sheet->getStyle('A' . $r . ':O' . ($r + 2))->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
 
         $sheet->setCellValue('B' . $r, 'Target Penagihan');
         $c = 'C';
@@ -243,6 +276,28 @@ class Report_penagihan extends Admin_Controller
             $c++;
         }
         $sheet->setCellValueExplicit('O' . $r, $total_cabang_r, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('O' . $r)->getFont()->setBold(true);
+
+        $r++;
+        $sheet->setCellValue('B' . $r, 'Realisasi Setor Bank');
+        $c = 'C';
+        $total_cabang_s = 0;
+        foreach ($bulan as $b) {
+            $bln_no = (int)$b['bulan_no'];
+            if ($tahun == $tahun_sekarang && $bln_no > $bulan_sekarang) {
+                $sheet->setCellValue($c . $r, '-');
+                $sheet->getStyle($c . $r)->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+            } else {
+                $gs = $grand_total_setor[$bln_no];
+                $sheet->setCellValueExplicit($c . $r, $gs, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+                $sheet->getStyle($c . $r)->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->getStyle($c . $r)->getFont()->setBold(true);
+                $total_cabang_s += $gs;
+            }
+            $c++;
+        }
+        $sheet->setCellValueExplicit('O' . $r, $total_cabang_s, PHPExcel_Cell_DataType::TYPE_NUMERIC);
         $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
         $sheet->getStyle('O' . $r)->getFont()->setBold(true);
 
@@ -345,6 +400,41 @@ class Report_penagihan extends Admin_Controller
         }
 
         return $rekap_target;
+    }
+
+    /**
+     * Hitung rekap Realisasi Setor Bank per sales x 12 bulan.
+     *
+     * Sumber: tr_setor_bank_detail (jumlah yang benar-benar disetor ke kasir/bank).
+     * Bulan dikelompokkan berdasarkan tgl_setor_kasir. Nilai diambil langsung dari
+     * kolom total_penerimaan tanpa join ke tr_invoice_payment_detail agar tidak
+     * terjadi dobel-hitung (satu kd_pembayaran bisa punya banyak baris detail).
+     *
+     * @param  int|string $tahun Tahun laporan
+     * @return array       rekap_setor[id_sales][bulan] = (float) total setor
+     */
+    private function hitung_rekap_setor($tahun)
+    {
+        $this->db->select("
+            sbd.id_sales as id_sales,
+            MONTH(sbd.tgl_setor_kasir) as bulan,
+            SUM(sbd.total_penerimaan) as total_setor
+        ", false);
+        $this->db->from('tr_setor_bank_detail sbd');
+        $this->db->where('YEAR(sbd.tgl_setor_kasir)', $tahun);
+        $this->db->where('sbd.tgl_setor_kasir IS NOT NULL', null, false);
+        $this->db->where("IFNULL(sbd.id_sales, '') <>", '');
+        // Abaikan baris yang sudah dihapus (soft delete) bila kolomnya tersedia
+        $this->db->where('sbd.deleted_at IS NULL', null, false);
+        $this->db->group_by('sbd.id_sales, MONTH(sbd.tgl_setor_kasir)');
+        $rows = $this->db->get()->result_array();
+
+        $rekap_setor = [];
+        foreach ($rows as $row) {
+            $rekap_setor[$row['id_sales']][(int)$row['bulan']] = (float)$row['total_setor'];
+        }
+
+        return $rekap_setor;
     }
 
     /**

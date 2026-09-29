@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekap Rumus - Report Late &amp; Bad Debt per Sales</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: #2c3e50;
+            margin: 0;
+            padding: 24px;
+            background: #f4f6f9;
+            line-height: 1.5;
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin: 0 0 4px;
+            color: #1a5276;
+        }
+
+        .sub {
+            color: #7f8c8d;
+            margin: 0 0 24px;
+            font-size: 13px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e1e5ea;
+            border-radius: 8px;
+            padding: 18px 22px;
+            margin-bottom: 22px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .04);
+        }
+
+        h2 {
+            font-size: 16px;
+            margin: 0 0 12px;
+            color: #1a5276;
+            border-left: 4px solid #2980b9;
+            padding-left: 10px;
+        }
+
+        .formula {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 14px;
+            margin: 8px 0;
+            overflow-x: auto;
+        }
+
+        .note {
+            font-size: 13px;
+            color: #566573;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 12.5px;
+        }
+
+        th,
+        td {
+            border: 1px solid #cfd8dc;
+            padding: 6px 8px;
+            vertical-align: middle;
+        }
+
+        thead th {
+            background: #2980b9;
+            color: #fff;
+            text-align: center;
+        }
+
+        .bg-info {
+            background: #d9eaf7;
+        }
+
+        .bg-yellow {
+            background: #ffff99;
+        }
+
+        .red {
+            color: #e74c3c;
+        }
+
+        .r {
+            text-align: right;
+        }
+
+        .c {
+            text-align: center;
+        }
+
+        .muted {
+            color: #95a5a6;
+        }
+
+        .sales {
+            font-weight: bold;
+            vertical-align: middle;
+            background: #f8f9fa;
+        }
+
+        .rumus-tbl th {
+            background: #34495e;
+        }
+
+        .rumus-tbl td:first-child {
+            font-weight: 600;
+            width: 34%;
+        }
+
+        code {
+            background: #eef2f5;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+        }
+
+        .legend span {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>Rekap Rumus &mdash; Report Late &amp; Bad Debt per Sales</h1>
+        <p class="sub">Modul: <code>application/modules/report_debt</code> &nbsp;|&nbsp; Dokumentasi rumus perhitungan &amp; mockup tampilan tabel</p>
+
+        <!-- ================= RUMUS DASAR ================= -->
+        <div class="card">
+            <h2>1. Rumus Dasar: Sisa Piutang per Invoice</h2>
+            <p class="note">Dihitung per <b>akhir bulan</b> (cutoff = tanggal akhir bulan). Invoice yang belum lunas akan <b>carry-forward</b> ke bulan berikutnya sampai ada pembayaran.</p>
+            <div class="formula">sisa_piutang = MAX( grand_total &minus; total_bayar &minus; total_cn , 0 )</div>
+            <table class="rumus-tbl">
+                <tr>
+                    <th>Komponen</th>
+                    <th>Keterangan</th>
+                </tr>
+                <tr>
+                    <td>grand_total</td>
+                    <td>Nilai invoice dari <code>tr_invoice_sales.grand_total</code></td>
+                </tr>
+                <tr>
+                    <td>total_bayar</td>
+                    <td>SUM <code>total_bayar_idr</code> dari pembayaran dengan <code>tgl_pembayaran &le; cutoff</code></td>
+                </tr>
+                <tr>
+                    <td>total_cn</td>
+                    <td>SUM <code>total_cn_idr</code> (credit note) dengan syarat tanggal yang sama</td>
+                </tr>
+                <tr>
+                    <td>GREATEST(..., 0)</td>
+                    <td>Memastikan nilai tidak pernah negatif</td>
+                </tr>
+            </table>
+            <p class="note" style="margin-top:10px;">Filter invoice: <code>created_on &le; cutoff</code> dan bukan cancel (<code>is_cancel IS NULL OR is_cancel = 2</code>).</p>
+        </div>
+
+        <!-- ================= AGING ================= -->
+        <div class="card">
+            <h2>2. Aging (Late &amp; Bad Debt)</h2>
+            <p class="note">Dihitung dari selisih <b>jatuh tempo</b> ke <b>hari ini</b> (live, bukan ke cutoff bulan).</p>
+            <div class="formula">hari_lewat = DATEDIFF( hari_ini , jatuh_tempo )</div>
+            <table class="rumus-tbl">
+                <tr>
+                    <th>Kategori</th>
+                    <th>Kondisi</th>
+                    <th>Nilai</th>
+                </tr>
+                <tr>
+                    <td>Late Debt</td>
+                    <td><code>hari_lewat</code> antara 15 &ndash; 30 hari</td>
+                    <td>SUM sisa_piutang &rarr; <code>aging_15_30</code></td>
+                </tr>
+                <tr>
+                    <td>Bad Debt</td>
+                    <td><code>hari_lewat &ge; 31</code> hari</td>
+                    <td>SUM sisa_piutang &rarr; <code>aging_30_up</code></td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- ================= RUMUS TURUNAN ================= -->
+        <div class="card">
+            <h2>3. Rumus Turunan (per Sales per Bulan)</h2>
+            <table class="rumus-tbl">
+                <tr>
+                    <th>Baris di Tabel</th>
+                    <th>Rumus</th>
+                </tr>
+                <tr>
+                    <td>Total piutang per akhir bulan</td>
+                    <td><code>SUM(sisa_piutang)</code></td>
+                </tr>
+                <tr>
+                    <td>Target % late debt</td>
+                    <td>Dari <code>master_debt.target_late_debt</code></td>
+                </tr>
+                <tr>
+                    <td>Target amount late debt</td>
+                    <td><code>total_piutang &times; (target_late% / 100)</code></td>
+                </tr>
+                <tr>
+                    <td>Actual amount late debt</td>
+                    <td><code>aging_15_30</code></td>
+                </tr>
+                <tr>
+                    <td>Persentase actual amount (late)</td>
+                    <td><code>(aging_15_30 / total_piutang) &times; 100</code></td>
+                </tr>
+                <tr>
+                    <td>Target bad debt %</td>
+                    <td>Dari <code>master_debt.target_bad_debt</code></td>
+                </tr>
+                <tr>
+                    <td>Target amount bad debt</td>
+                    <td><code>total_piutang &times; (target_bad% / 100)</code></td>
+                </tr>
+                <tr>
+                    <td>Actual amount bad debt</td>
+                    <td><code>aging_30_up</code></td>
+                </tr>
+                <tr>
+                    <td>Persentase actual amount bad debt</td>
+                    <td><code>(aging_30_up / total_piutang) &times; 100</code></td>
+                </tr>
+            </table>
+            <p class="note" style="margin-top:10px;">Semua persentase pakai guard: bila <code>total_piutang = 0</code> maka hasil <code>0</code> (hindari bagi nol).</p>
+        </div>
+
+        <!-- ================= MOCKUP TAMPILAN ================= -->
+        <div class="card">
+            <h2>4. Mockup Tampilan HTML (contoh data)</h2>
+            <p class="legend">
+                <span class="bg-info">Target %</span>
+                <span class="bg-yellow">Amount (target &amp; actual)</span>
+                <span class="red">Persentase actual</span>
+            </p>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="min-width:150px;">Nama Sales</th>
+                            <th style="min-width:180px;">Keterangan</th>
+                            <th>Jan</th>
+                            <th>Feb</th>
+                            <th>Mar</th>
+                            <th>...</th>
+                            <th>T Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="sales" rowspan="9">BUDI SANTOSO</td>
+                            <td>Total piutang per akhir bulan</td>
+                            <td class="r">150.000.000</td>
+                            <td class="r">175.000.000</td>
+                            <td class="r">160.000.000</td>
+                            <td class="c muted">...</td>
+                            <td class="r"><b>485.000.000</b></td>
+                        </tr>
+                        <tr>
+                            <td class="bg-info">Target % late debt</td>
+                            <td class="c bg-info">5%</td>
+                            <td class="c bg-info">5%</td>
+                            <td class="c bg-info">5%</td>
+                            <td class="c muted">...</td>
+                            <td class="c">-</td>
+                        </tr>
+                        <tr class="bg-yellow">
+                            <td><b>Target amount late debt (amount)</b></td>
+                            <td class="r"><b>7.500.000</b></td>
+                            <td class="r"><b>8.750.000</b></td>
+                            <td class="r"><b>8.000.000</b></td>
+                            <td class="c muted">...</td>
+                            <td class="r"><b>24.250.000</b></td>
+                        </tr>
+                        <tr class="bg-yellow">
+                            <td>Actual amount late debt</td>
+                            <td class="r">6.200.000</td>
+                            <td class="r">9.100.000</td>
+                            <td class="r">7.500.000</td>
+                            <td class="c muted">...</td>
+                            <td class="r">22.800.000</td>
+                        </tr>
+                        <tr>
+                            <td>Persentase actual amount</td>
+                            <td class="c red">4,13%</td>
+                            <td class="c red">5,20%</td>
+                            <td class="c red">4,69%</td>
+                            <td class="c muted">...</td>
+                            <td class="c red">4,70%</td>
+                        </tr>
+                        <tr>
+                            <td class="bg-info">Target bad debt %</td>
+                            <td class="c bg-info">2%</td>
+                            <td class="c bg-info">2%</td>
+                            <td class="c bg-info">2%</td>
+                            <td class="c muted">...</td>
+                            <td class="c">-</td>
+                        </tr>
+                        <tr class="bg-yellow">
+                            <td><b>Target amount bad debt (amount)</b></td>
+                            <td class="r"><b>3.000.000</b></td>
+                            <td class="r"><b>3.500.000</b></td>
+                            <td class="r"><b>3.200.000</b></td>
+                            <td class="c muted">...</td>
+                            <td class="r"><b>9.700.000</b></td>
+                        </tr>
+                        <tr class="bg-yellow">
+                            <td>Actual amount bad debt</td>
+                            <td class="r">2.100.000</td>
+                            <td class="r">4.000.000</td>
+                            <td class="r">3.800.000</td>
+                            <td class="c muted">...</td>
+                            <td class="r">9.900.000</td>
+                        </tr>
+                        <tr>
+                            <td>Persentase actual amount bad debt</td>
+                            <td class="c red">1,40%</td>
+                            <td class="c red">2,29%</td>
+                            <td class="c red">2,38%</td>
+                            <td class="c muted">...</td>
+                            <td class="c red">2,04%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="note" style="margin-top:12px;">Angka pada baris <b>Total piutang</b>, <b>Actual late</b>, dan <b>Actual bad</b> bisa diklik untuk mengunduh detail invoice (Excel) via <code>report_debt/export_detail</code>.</p>
+        </div>
+
+        <p class="sub">Sumber: <code>controllers/Report_debt.php</code> &amp; <code>views/index.php</code></p>
+    </div>
+</body>
+
+</html>
