@@ -58,11 +58,16 @@ class Report_penagihan extends Admin_Controller
             $rekap_realisasi[$row['id_sales']][$row['bulan']] = (float)$row['total_realisasi'];
         }
 
+        // 4. Realisasi Setor per sales x bulan - gabungan 3 jalur:
+        //    setor kasir + setor bank LANGSUNG + customer langsung ke bank (tipe_bayar='bank').
+        $rekap_setor = $this->hitung_rekap_setor($tahun);
+
         $data = [
             'sales' => $sales,
             'bulan' => $bulan,
             'rekap_target' => $rekap_target,
             'rekap_realisasi' => $rekap_realisasi,
+            'rekap_setor' => $rekap_setor,
             'tahun_pilih' => $tahun,
             'bulan_sekarang' => $bulan_sekarang,
             'tahun_sekarang' => $tahun_sekarang,
@@ -104,6 +109,9 @@ class Report_penagihan extends Admin_Controller
             $rekap_realisasi[$row['id_sales']][$row['bulan']] = (float)$row['total_realisasi'];
         }
 
+        // 3b. Realisasi Setor per sales x bulan (gabungan 3 jalur)
+        $rekap_setor = $this->hitung_rekap_setor($tahun);
+
         // 4. Setup PHPExcel
         set_time_limit(0);
         ini_set('memory_limit', '1024M');
@@ -142,11 +150,12 @@ class Report_penagihan extends Admin_Controller
         $r = $rowHeader + 1;
         $grand_total_target = array_fill(1, 12, 0);
         $grand_total_realisasi = array_fill(1, 12, 0);
+        $grand_total_setor = array_fill(1, 12, 0);
 
         foreach ($sales as $s) {
-            // Merge Nama Sales (2 baris: Target Penagihan, Realisasi Tagihan)
+            // Merge Nama Sales (3 baris: Target, Realisasi Tagihan, Realisasi Setor Bank)
             $sheet->setCellValue('A' . $r, strtoupper($s['nm_karyawan']));
-            $sheet->mergeCells('A' . $r . ':A' . ($r + 1));
+            $sheet->mergeCells('A' . $r . ':A' . ($r + 2));
             $sheet->getStyle('A' . $r)->getAlignment()->setVertical(PHPExcel_Style_Alignment::VERTICAL_CENTER);
 
             // Baris Target Penagihan (Target)
@@ -195,13 +204,36 @@ class Report_penagihan extends Admin_Controller
             $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
             $sheet->getStyle('O' . $r)->getFont()->setBold(true);
 
+            // Baris Realisasi Setor Bank
+            $r++;
+            $sheet->setCellValue('B' . $r, 'Realisasi Setor Bank');
+            $row_t_setor = 0;
+            $c = 'C';
+            foreach ($bulan as $b) {
+                $bln_no = (int)$b['bulan_no'];
+                if ($tahun == $tahun_sekarang && $bln_no > $bulan_sekarang) {
+                    $sheet->setCellValue($c . $r, '-');
+                    $sheet->getStyle($c . $r)->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+                } else {
+                    $val = (float)($rekap_setor[$s['id']][$bln_no] ?? 0);
+                    $sheet->setCellValueExplicit($c . $r, $val, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+                    $sheet->getStyle($c . $r)->getNumberFormat()->setFormatCode('#,##0');
+                    $row_t_setor += $val;
+                    $grand_total_setor[$bln_no] += $val;
+                }
+                $c++;
+            }
+            $sheet->setCellValueExplicit('O' . $r, $row_t_setor, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('O' . $r)->getFont()->setBold(true);
+
             $r++;
         }
 
-        // 7. Baris Target Cabang (Grand Total)
+        // 7. Baris Target Cabang (Grand Total) - 3 baris (termasuk Realisasi Setor Bank)
         $sheet->setCellValue('A' . $r, 'Target Cabang');
-        $sheet->mergeCells('A' . $r . ':A' . ($r + 1));
-        $sheet->getStyle('A' . $r . ':O' . ($r + 1))->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
+        $sheet->mergeCells('A' . $r . ':A' . ($r + 2));
+        $sheet->getStyle('A' . $r . ':O' . ($r + 2))->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
 
         $sheet->setCellValue('B' . $r, 'Target Penagihan');
         $c = 'C';
@@ -243,6 +275,28 @@ class Report_penagihan extends Admin_Controller
             $c++;
         }
         $sheet->setCellValueExplicit('O' . $r, $total_cabang_r, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('O' . $r)->getFont()->setBold(true);
+
+        $r++;
+        $sheet->setCellValue('B' . $r, 'Realisasi Setor Bank');
+        $c = 'C';
+        $total_cabang_s = 0;
+        foreach ($bulan as $b) {
+            $bln_no = (int)$b['bulan_no'];
+            if ($tahun == $tahun_sekarang && $bln_no > $bulan_sekarang) {
+                $sheet->setCellValue($c . $r, '-');
+                $sheet->getStyle($c . $r)->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+            } else {
+                $gs = $grand_total_setor[$bln_no];
+                $sheet->setCellValueExplicit($c . $r, $gs, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+                $sheet->getStyle($c . $r)->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->getStyle($c . $r)->getFont()->setBold(true);
+                $total_cabang_s += $gs;
+            }
+            $c++;
+        }
+        $sheet->setCellValueExplicit('O' . $r, $total_cabang_s, PHPExcel_Cell_DataType::TYPE_NUMERIC);
         $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
         $sheet->getStyle('O' . $r)->getFont()->setBold(true);
 
@@ -345,6 +399,72 @@ class Report_penagihan extends Admin_Controller
         }
 
         return $rekap_target;
+    }
+
+    /**
+     * Hitung rekap Realisasi Setor per sales x bulan.
+     *
+     * Menggabungkan 3 jalur penerimaan yang saling eksklusif (tidak overlap,
+     * sudah diverifikasi) sehingga UNION ALL aman tanpa dobel-hitung:
+     *   1. Setor Kasir  : tr_setor_kasir_detail, filter tr_setor_kasir.tgl_setor
+     *   2. Setor Bank   : tr_setor_bank_detail (tipe_setor='LANGSUNG'),
+     *                     filter tr_setor_bank.tgl_setor
+     *   3. Customer ke Bank : tr_invoice_payment_detail dengan
+     *                     tr_invoice_payment.tipe_bayar='bank', filter tgl_pembayaran
+     *
+     * Sales ditentukan dari tr_invoice_payment.id_customer -> master_customers
+     * -> employee (join lewat kd_pembayaran yang ada di semua tabel).
+     * Total gabungan cocok dengan "Penerimaan Piutang" di Laporan Arus Kas.
+     *
+     * @param  int|string $tahun Tahun laporan
+     * @return array       rekap[id_sales][bulan] = (float) total setor
+     */
+    private function hitung_rekap_setor($tahun)
+    {
+        $tahun = (int)$tahun;
+
+        // Tiap jalur diagregasi per (kd_pembayaran, bulan) lebih dulu, lalu join ke
+        // tr_invoice_payment untuk mengambil id_customer -> sales.
+        $sql = "
+            SELECT c.id AS id_sales, t.bulan AS bulan, SUM(t.nilai) AS total_setor
+            FROM (
+                -- Jalur 1: Setor Kasir
+                SELECT skd.kd_pembayaran, MONTH(sk.tgl_setor) AS bulan, skd.total_penerimaan AS nilai
+                FROM tr_setor_kasir_detail skd
+                JOIN tr_setor_kasir sk ON sk.id = skd.id_setor_kasir
+                WHERE YEAR(sk.tgl_setor) = $tahun
+
+                UNION ALL
+
+                -- Jalur 2: Setor Bank LANGSUNG
+                SELECT sbd.kd_pembayaran, MONTH(sb.tgl_setor) AS bulan, sbd.total_penerimaan AS nilai
+                FROM tr_setor_bank_detail sbd
+                JOIN tr_setor_bank sb ON sb.id = sbd.id_setor_bank
+                WHERE YEAR(sb.tgl_setor) = $tahun
+                  AND sb.tipe_setor = 'LANGSUNG'
+
+                UNION ALL
+
+                -- Jalur 3: Customer langsung ke Bank
+                SELECT pd.kd_pembayaran, MONTH(p.tgl_pembayaran) AS bulan, pd.total_bayar_idr AS nilai
+                FROM tr_invoice_payment_detail pd
+                JOIN tr_invoice_payment p ON p.kd_pembayaran = pd.kd_pembayaran
+                WHERE p.tipe_bayar = 'bank'
+                  AND YEAR(p.tgl_pembayaran) = $tahun
+            ) t
+            JOIN tr_invoice_payment ip ON ip.kd_pembayaran = t.kd_pembayaran
+            JOIN master_customers b ON b.id_customer = ip.id_customer
+            JOIN employee c ON c.id = b.id_karyawan
+            GROUP BY c.id, t.bulan
+        ";
+        $rows = $this->db->query($sql)->result_array();
+
+        $rekap = [];
+        foreach ($rows as $row) {
+            $rekap[$row['id_sales']][(int)$row['bulan']] = (float)$row['total_setor'];
+        }
+
+        return $rekap;
     }
 
     /**
