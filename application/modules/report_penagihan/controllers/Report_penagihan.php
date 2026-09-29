@@ -406,35 +406,37 @@ class Report_penagihan extends Admin_Controller
         // invoice -> customer -> employee (karena kolom id_sales di tabel detail bisa kosong).
         $tahun = $this->db->escape($tahun);
 
-        // Catatan: sebagian no_invoice bisa berisi gabungan (mis. "INV-A,INV-B").
-        // Untuk menentukan sales, dipakai invoice PERTAMA sebelum koma
-        // (SUBSTRING_INDEX), sedangkan nilai total_penerimaan tetap utuh agar
-        // tidak ada setoran yang hilang saat join ke invoice.
+        // Pendekatan: kumpulkan DISTINCT kd_pembayaran yang sudah disetor, baik lewat
+        // setor bank LANGSUNG maupun setor kasir. Setor bank LANGSUNG pasti tidak ada
+        // di setor kasir (jalur terpisah), jadi tidak ada dobel antar sumber. DISTINCT
+        // tetap dipakai untuk menjamin satu kd_pembayaran hanya terhitung sekali.
+        //
+        // Nilai realisasi diambil dari tr_invoice_payment_detail (nilai pembayaran asli),
+        // bulan dari tr_invoice_payment.tgl_pembayaran, dan sales dari rantai
+        // invoice -> customer -> employee.
         $sql = "
-            SELECT c.id AS id_sales, t.bulan AS bulan, SUM(t.total_penerimaan) AS total_setor
+            SELECT c.id AS id_sales, MONTH(p.tgl_pembayaran) AS bulan,
+                   SUM(pd.total_bayar_idr) AS total_setor
             FROM (
-                -- Setoran ke Bank (hanya tipe LANGSUNG, agar tidak dobel dengan setor kasir
-                -- yang juga tercatat di tr_setor_bank sebagai tipe KASIR)
-                SELECT TRIM(SUBSTRING_INDEX(sbd.no_invoice, ',', 1)) AS inv,
-                       MONTH(sb.tgl_setor) AS bulan, sbd.total_penerimaan
-                FROM tr_setor_bank_detail sbd
-                JOIN tr_setor_bank sb ON sb.id = sbd.id_setor_bank
-                WHERE YEAR(sb.tgl_setor) = $tahun
-                  AND sb.tipe_setor = 'LANGSUNG'
+                SELECT DISTINCT kd_pembayaran FROM (
+                    SELECT sbd.kd_pembayaran
+                    FROM tr_setor_bank_detail sbd
+                    JOIN tr_setor_bank sb ON sb.id = sbd.id_setor_bank
+                    WHERE sb.tipe_setor = 'LANGSUNG'
 
-                UNION ALL
+                    UNION ALL
 
-                -- Setoran ke Kasir
-                SELECT TRIM(SUBSTRING_INDEX(skd.no_invoice, ',', 1)) AS inv,
-                       MONTH(sk.tgl_setor) AS bulan, skd.total_penerimaan
-                FROM tr_setor_kasir_detail skd
-                JOIN tr_setor_kasir sk ON sk.id = skd.id_setor_kasir
-                WHERE YEAR(sk.tgl_setor) = $tahun
-            ) t
-            JOIN tr_invoice_sales a ON a.id_invoice = t.inv
+                    SELECT skd.kd_pembayaran
+                    FROM tr_setor_kasir_detail skd
+                ) u
+            ) s
+            JOIN tr_invoice_payment p ON p.kd_pembayaran = s.kd_pembayaran
+            JOIN tr_invoice_payment_detail pd ON pd.kd_pembayaran = s.kd_pembayaran
+            JOIN tr_invoice_sales a ON a.id_invoice = pd.no_invoice
             JOIN master_customers b ON a.id_customer = b.id_customer
             JOIN employee c ON b.id_karyawan = c.id
-            GROUP BY c.id, t.bulan
+            WHERE YEAR(p.tgl_pembayaran) = $tahun
+            GROUP BY c.id, MONTH(p.tgl_pembayaran)
         ";
         $rows = $this->db->query($sql)->result_array();
 
