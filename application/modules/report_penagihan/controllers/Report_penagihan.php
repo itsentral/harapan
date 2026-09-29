@@ -415,22 +415,37 @@ class Report_penagihan extends Admin_Controller
      */
     private function hitung_rekap_setor($tahun)
     {
-        // Bulan diambil dari tgl_setor pada header tr_setor_bank (join via id_setor_bank).
-        // Sales diambil dari rantai invoice -> customer -> employee, karena kolom
-        // sbd.id_sales sering kosong (hanya terisi bila lewat proses setor kasir).
-        $this->db->select("
-            c.id as id_sales,
-            MONTH(sb.tgl_setor) as bulan,
-            SUM(sbd.total_penerimaan) as total_setor
-        ", false);
-        $this->db->from('tr_setor_bank_detail sbd');
-        $this->db->join('tr_setor_bank sb', 'sb.id = sbd.id_setor_bank');
-        $this->db->join('tr_invoice_sales a', 'a.id_invoice = sbd.no_invoice');
-        $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
-        $this->db->join('employee c', 'b.id_karyawan = c.id');
-        $this->db->where('YEAR(sb.tgl_setor)', $tahun);
-        $this->db->group_by('c.id, MONTH(sb.tgl_setor)');
-        $rows = $this->db->get()->result_array();
+        // Realisasi Setor = gabungan setoran ke BANK (tr_setor_bank_detail) dan setoran
+        // ke KASIR (tr_setor_kasir_detail), digabung via UNION ALL. Bulan diambil dari
+        // tgl_setor pada masing-masing header. Sales dijoin lewat rantai
+        // invoice -> customer -> employee (karena kolom id_sales di tabel detail bisa kosong).
+        $tahun = $this->db->escape($tahun);
+
+        $sql = "
+            SELECT c.id AS id_sales, t.bulan AS bulan, SUM(t.total_penerimaan) AS total_setor
+            FROM (
+                -- Setoran ke Bank (hanya tipe LANGSUNG, agar tidak dobel dengan setor kasir
+                -- yang juga tercatat di tr_setor_bank sebagai tipe KASIR)
+                SELECT sbd.no_invoice, MONTH(sb.tgl_setor) AS bulan, sbd.total_penerimaan
+                FROM tr_setor_bank_detail sbd
+                JOIN tr_setor_bank sb ON sb.id = sbd.id_setor_bank
+                WHERE YEAR(sb.tgl_setor) = $tahun
+                  AND sb.tipe_setor = 'LANGSUNG'
+
+                UNION ALL
+
+                -- Setoran ke Kasir
+                SELECT skd.no_invoice, MONTH(sk.tgl_setor) AS bulan, skd.total_penerimaan
+                FROM tr_setor_kasir_detail skd
+                JOIN tr_setor_kasir sk ON sk.id = skd.id_setor_kasir
+                WHERE YEAR(sk.tgl_setor) = $tahun
+            ) t
+            JOIN tr_invoice_sales a ON a.id_invoice = t.no_invoice
+            JOIN master_customers b ON a.id_customer = b.id_customer
+            JOIN employee c ON b.id_karyawan = c.id
+            GROUP BY c.id, t.bulan
+        ";
+        $rows = $this->db->query($sql)->result_array();
 
         $rekap_setor = [];
         foreach ($rows as $row) {
