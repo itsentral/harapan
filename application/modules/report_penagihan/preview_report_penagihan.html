@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Target Penagihan vs Realisasi Tagihan</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f4f6f9;
+            color: #333;
+        }
+        .box {
+            background: #fff;
+            border-top: 3px solid #3c8dbc;
+            border-radius: 3px;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, .1);
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h2 { margin: 0 0 20px; font-size: 20px; }
+        .toolbar {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .toolbar label { display: block; font-size: 13px; margin-bottom: 4px; font-weight: 600; }
+        select {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 7px 14px;
+            border: none;
+            border-radius: 3px;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            color: #fff;
+        }
+        .btn-success { background: #00a65a; }
+        .btn-info { background: #00c0ef; }
+        .btn-xs { padding: 2px 6px; font-size: 11px; }
+
+        table { border-collapse: collapse; width: 100%; font-size: 13px; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        thead th { background: #3c8dbc; color: #fff; text-align: center; white-space: nowrap; }
+        tfoot td { background: #d9edf7; font-weight: bold; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-muted { color: #999; }
+        .nama-sales { font-weight: bold; vertical-align: middle; }
+        .table-responsive { overflow-x: auto; }
+        tbody tr:nth-child(4n+1), tbody tr:nth-child(4n+2) { background: #f9f9f9; }
+        a.detail-link { color: inherit; text-decoration: underline; }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .5);
+            z-index: 1000;
+        }
+        .modal-overlay.show { display: flex; align-items: flex-start; justify-content: center; }
+        .modal {
+            background: #fff;
+            width: 800px;
+            max-width: 95%;
+            margin-top: 40px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .modal-header {
+            background: #3c8dbc;
+            color: #fff;
+            padding: 12px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h4 { margin: 0; font-size: 16px; }
+        .modal-header .close { cursor: pointer; font-size: 22px; background: none; border: none; color: #fff; }
+        .modal-body { padding: 18px; }
+        .form-row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+        .form-row label { font-weight: 600; align-self: center; }
+        .form-row input[type=text] { padding: 5px 8px; border: 1px solid #ccc; border-radius: 3px; }
+        .komisi-table input { width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 3px; text-align: right; }
+        .komisi-table th { background: #3c8dbc; color: #fff; }
+    </style>
+</head>
+
+<body>
+    <div class="box">
+        <h2><i>💳</i> Report Target Penagihan vs Realisasi Tagihan</h2>
+
+        <div class="toolbar">
+            <div>
+                <label>Pilih Tahun</label>
+                <select id="tahun">
+                    <option>2024</option>
+                    <option selected>2025</option>
+                    <option>2026</option>
+                </select>
+            </div>
+            <a href="#" class="btn btn-success">📊 Export Excel</a>
+        </div>
+
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="min-width:150px;">Nama Sales</th>
+                        <th style="min-width:180px;">Keterangan</th>
+                        <th>Jan</th>
+                        <th>Feb</th>
+                        <th>Mar</th>
+                        <th>Apr</th>
+                        <th>Mei</th>
+                        <th>Jun</th>
+                        <th>Jul</th>
+                        <th>Agu</th>
+                        <th>Sep</th>
+                        <th>Okt</th>
+                        <th>Nov</th>
+                        <th>Des</th>
+                        <th>T Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Contoh Sales 1 -->
+                    <tr>
+                        <td rowspan="2" class="nama-sales">Budi Santoso</td>
+                        <td>Target Penagihan</td>
+                        <td class="text-right"><a href="#" class="detail-link">50,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">62,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">48,500,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">55,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">60,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">58,000,000</a></td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-right"><b>333,500,000</b></td>
+                    </tr>
+                    <tr>
+                        <td>Realisasi Tagihan</td>
+                        <td class="text-right">
+                            <a href="#" class="detail-link">45,000,000</a><br>
+                            <button class="btn btn-info btn-xs btn-komisi"
+                                data-nama="Budi Santoso" data-bulan="Januari">🧮 Komisi</button>
+                        </td>
+                        <td class="text-right"><a href="#" class="detail-link">60,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">50,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">52,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">59,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">57,000,000</a></td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-right"><b>323,000,000</b></td>
+                    </tr>
+                    <!-- Contoh Sales 2 -->
+                    <tr>
+                        <td rowspan="2" class="nama-sales">Siti Aminah</td>
+                        <td>Target Penagihan</td>
+                        <td class="text-right"><a href="#" class="detail-link">40,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">42,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">38,500,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">45,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">41,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">44,000,000</a></td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-right"><b>250,500,000</b></td>
+                    </tr>
+                    <tr>
+                        <td>Realisasi Tagihan</td>
+                        <td class="text-right">
+                            <a href="#" class="detail-link">38,000,000</a><br>
+                            <button class="btn btn-info btn-xs btn-komisi"
+                                data-nama="Siti Aminah" data-bulan="Januari">🧮 Komisi</button>
+                        </td>
+                        <td class="text-right"><a href="#" class="detail-link">40,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">39,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">43,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">40,000,000</a></td>
+                        <td class="text-right"><a href="#" class="detail-link">42,000,000</a></td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-right"><b>242,000,000</b></td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td rowspan="2">Target Cabang</td>
+                        <td>Target Penagihan</td>
+                        <td class="text-right">90,000,000</td>
+                        <td class="text-right">104,000,000</td>
+                        <td class="text-right">87,000,000</td>
+                        <td class="text-right">100,000,000</td>
+                        <td class="text-right">101,000,000</td>
+                        <td class="text-right">102,000,000</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-right">584,000,000</td>
+                    </tr>
+                    <tr>
+                        <td>Realisasi Tagihan</td>
+                        <td class="text-right">83,000,000</td>
+                        <td class="text-right">100,000,000</td>
+                        <td class="text-right">89,000,000</td>
+                        <td class="text-right">95,000,000</td>
+                        <td class="text-right">99,000,000</td>
+                        <td class="text-right">99,000,000</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-right">565,000,000</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Komisi -->
+    <div class="modal-overlay" id="modalKomisi">
+        <div class="modal">
+            <div class="modal-header">
+                <h4>Form Perhitungan Komisi</h4>
+                <button class="close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <label>Sales</label>
+                    <input type="text" id="m_sales" readonly>
+                    <label>Bulan</label>
+                    <input type="text" id="m_bulan" readonly>
+                </div>
+                <hr>
+                <table class="komisi-table">
+                    <thead>
+                        <tr>
+                            <th style="width:20%;">Item</th>
+                            <th>Target</th>
+                            <th>Pencapaian</th>
+                            <th>% Kinerja</th>
+                            <th>Koefisien (%)</th>
+                            <th>Nilai Komisi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Pencapaian Tagihan On Time</td>
+                            <td><input type="text" id="t_ontime" class="money" value="30,000,000"></td>
+                            <td><input type="text" id="r_ontime" class="money" value="28,000,000"></td>
+                            <td><input type="text" id="p_ontime" readonly></td>
+                            <td><input type="text" id="k_ontime" value="2"></td>
+                            <td><input type="text" id="n_ontime" readonly></td>
+                        </tr>
+                        <tr>
+                            <td>Pencapaian Pembayaran Tunggakan</td>
+                            <td><input type="text" id="t_tunggakan" class="money" value="15,000,000"></td>
+                            <td><input type="text" id="r_tunggakan" class="money" value="12,000,000"></td>
+                            <td><input type="text" id="p_tunggakan" readonly></td>
+                            <td><input type="text" id="k_tunggakan" value="3"></td>
+                            <td><input type="text" id="n_tunggakan" readonly></td>
+                        </tr>
+                        <tr>
+                            <td>Pencapaian Penjualan</td>
+                            <td><input type="text" id="t_penjualan" class="money" value="100,000,000"></td>
+                            <td><input type="text" id="r_penjualan" class="money" value="95,000,000" readonly></td>
+                            <td><input type="text" id="p_penjualan" readonly></td>
+                            <td><input type="text" id="k_penjualan" value="1.5"></td>
+                            <td><input type="text" id="n_penjualan" readonly></td>
+                        </tr>
+                        <tr>
+                            <td colspan="5" style="text-align:right;"><b>Grand Total Komisi</b></td>
+                            <td><input type="text" id="grand_total" readonly style="font-weight:bold;"></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="text-align:right; margin-top:15px;">
+                    <button class="btn btn-success" onclick="hitungSemua()">🔄 Hitung</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toNum(s) { return parseFloat(String(s).replace(/[^0-9.-]+/g, '')) || 0; }
+        function fmt(n) { return n.toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+
+        function hitungItem(key) {
+            var target = toNum(document.getElementById('t_' + key).value);
+            var realisasi = toNum(document.getElementById('r_' + key).value);
+            var koef = toNum(document.getElementById('k_' + key).value);
+            var persen = target > 0 ? (realisasi / target) * 100 : 0;
+            document.getElementById('p_' + key).value = persen.toFixed(2);
+            var nilai = realisasi * (koef / 100);
+            document.getElementById('n_' + key).value = fmt(nilai);
+            return nilai;
+        }
+
+        function hitungSemua() {
+            var nOntime = hitungItem('ontime');
+            var nTunggakan = hitungItem('tunggakan');
+            var totalOT = nOntime + nTunggakan;
+
+            // Penjualan: nilai komisi = totalOT * (koef/100)
+            var tP = toNum(document.getElementById('t_penjualan').value);
+            var rP = toNum(document.getElementById('r_penjualan').value);
+            var kP = toNum(document.getElementById('k_penjualan').value);
+            document.getElementById('p_penjualan').value = (tP > 0 ? (rP / tP) * 100 : 0).toFixed(2);
+            var nPenjualan = totalOT * (kP / 100);
+            document.getElementById('n_penjualan').value = fmt(nPenjualan);
+
+            document.getElementById('grand_total').value = fmt(totalOT + nPenjualan);
+        }
+
+        // Modal handlers
+        document.querySelectorAll('.btn-komisi').forEach(function (b) {
+            b.addEventListener('click', function () {
+                document.getElementById('m_sales').value = this.dataset.nama;
+                document.getElementById('m_bulan').value = this.dataset.bulan + ' 2025';
+                document.getElementById('modalKomisi').classList.add('show');
+                hitungSemua();
+            });
+        });
+        function closeModal() { document.getElementById('modalKomisi').classList.remove('show'); }
+
+        // Recalc on input change
+        ['ontime', 'tunggakan', 'penjualan'].forEach(function (k) {
+            ['t_', 'r_', 'k_'].forEach(function (p) {
+                var el = document.getElementById(p + k);
+                if (el) el.addEventListener('keyup', hitungSemua);
+            });
+        });
+    </script>
+</body>
+
+</html>

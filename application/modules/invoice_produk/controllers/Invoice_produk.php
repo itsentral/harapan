@@ -497,7 +497,9 @@ class Invoice_produk extends Admin_Controller
 		$post = $this->input->post();
 		$id_so = $post['no_so'];
 
-		$tgl_so = $this->db->select('tgl_so')->where('no_so', $id_so)->limit(1)->get('sales_order')->row('tgl_so');
+		$get_so_head = $this->db->select('tgl_so, nama_sales')->where('no_so', $id_so)->limit(1)->get('sales_order')->row();
+		$tgl_so     = $get_so_head->tgl_so ?? null;
+		$nama_sales = $get_so_head->nama_sales ?? null;
 		$get_top = $this->db
 			->select('a.payment_term, b.name as top_name, b.data1 as jumlah_top')
 			->from('sales_order a')
@@ -608,9 +610,12 @@ class Invoice_produk extends Admin_Controller
 					'id_so' => $post['no_so'],
 					'tipe_so' => $post['tipe_so'],
 					'id_penawaran' => $post['id_penawaran'],
+					'id_customer' => $post['id_customer'],
+					'nm_customer' => $post['nm_customer'],
 					'id_delivery' => $post['id_billing'],
 					'id_produk' => $item_details->id_product,
 					'nm_produk' => $item_details->product,
+					'nama_sales' => $nama_sales,
 					'qty' => $item_details->qty_delivery,
 					'uom' => $item_details->uom,
 					'harga' => $item_details->harga_penawaran,
