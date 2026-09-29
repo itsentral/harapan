@@ -151,12 +151,20 @@ class Report_penagihan extends Admin_Controller
         $r = $rowHeader + 1;
         $grand_total_target = array_fill(1, 12, 0);
         $grand_total_realisasi = array_fill(1, 12, 0);
+
+        // Grand total setor bank per bulan (hanya tampil di Total Cabang, tidak per sales)
         $grand_total_setor = array_fill(1, 12, 0);
+        foreach ($sales as $s) {
+            foreach ($bulan as $b) {
+                $bln_no = (int)$b['bulan_no'];
+                $grand_total_setor[$bln_no] += (float)($rekap_setor[$s['id']][$bln_no] ?? 0);
+            }
+        }
 
         foreach ($sales as $s) {
-            // Merge Nama Sales (3 baris: Target, Realisasi Tagihan, Realisasi Setor Bank)
+            // Merge Nama Sales (2 baris: Target Penagihan, Realisasi Tagihan)
             $sheet->setCellValue('A' . $r, strtoupper($s['nm_karyawan']));
-            $sheet->mergeCells('A' . $r . ':A' . ($r + 2));
+            $sheet->mergeCells('A' . $r . ':A' . ($r + 1));
             $sheet->getStyle('A' . $r)->getAlignment()->setVertical(PHPExcel_Style_Alignment::VERTICAL_CENTER);
 
             // Baris Target Penagihan (Target)
@@ -205,33 +213,10 @@ class Report_penagihan extends Admin_Controller
             $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
             $sheet->getStyle('O' . $r)->getFont()->setBold(true);
 
-            // Baris Realisasi Setor Bank
-            $r++;
-            $sheet->setCellValue('B' . $r, 'Realisasi Setor Bank');
-            $row_t_setor = 0;
-            $c = 'C';
-            foreach ($bulan as $b) {
-                $bln_no = (int)$b['bulan_no'];
-                if ($tahun == $tahun_sekarang && $bln_no > $bulan_sekarang) {
-                    $sheet->setCellValue($c . $r, '-');
-                    $sheet->getStyle($c . $r)->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
-                } else {
-                    $val = (float)($rekap_setor[$s['id']][$bln_no] ?? 0);
-                    $sheet->setCellValueExplicit($c . $r, $val, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-                    $sheet->getStyle($c . $r)->getNumberFormat()->setFormatCode('#,##0');
-                    $row_t_setor += $val;
-                    $grand_total_setor[$bln_no] += $val;
-                }
-                $c++;
-            }
-            $sheet->setCellValueExplicit('O' . $r, $row_t_setor, PHPExcel_Cell_DataType::TYPE_NUMERIC);
-            $sheet->getStyle('O' . $r)->getNumberFormat()->setFormatCode('#,##0');
-            $sheet->getStyle('O' . $r)->getFont()->setBold(true);
-
             $r++;
         }
 
-        // 7. Baris Target Cabang (Grand Total) - 3 baris
+        // 7. Baris Target Cabang (Grand Total) - 3 baris (termasuk Realisasi Setor Bank)
         $sheet->setCellValue('A' . $r, 'Target Cabang');
         $sheet->mergeCells('A' . $r . ':A' . ($r + 2));
         $sheet->getStyle('A' . $r . ':O' . ($r + 2))->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
