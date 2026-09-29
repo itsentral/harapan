@@ -415,18 +415,21 @@ class Report_penagihan extends Admin_Controller
      */
     private function hitung_rekap_setor($tahun)
     {
+        // Bulan diambil dari tgl_setor pada header tr_setor_bank (join via id_setor_bank).
+        // Sales diambil dari rantai invoice -> customer -> employee, karena kolom
+        // sbd.id_sales sering kosong (hanya terisi bila lewat proses setor kasir).
         $this->db->select("
-            sbd.id_sales as id_sales,
-            MONTH(sbd.tgl_setor_kasir) as bulan,
+            c.id as id_sales,
+            MONTH(sb.tgl_setor) as bulan,
             SUM(sbd.total_penerimaan) as total_setor
         ", false);
         $this->db->from('tr_setor_bank_detail sbd');
-        $this->db->where('YEAR(sbd.tgl_setor_kasir)', $tahun);
-        $this->db->where('sbd.tgl_setor_kasir IS NOT NULL', null, false);
-        $this->db->where("IFNULL(sbd.id_sales, '') <>", '');
-        // Abaikan baris yang sudah dihapus (soft delete) bila kolomnya tersedia
-        $this->db->where('sbd.deleted_at IS NULL', null, false);
-        $this->db->group_by('sbd.id_sales, MONTH(sbd.tgl_setor_kasir)');
+        $this->db->join('tr_setor_bank sb', 'sb.id = sbd.id_setor_bank');
+        $this->db->join('tr_invoice_sales a', 'a.id_invoice = sbd.no_invoice');
+        $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
+        $this->db->join('employee c', 'b.id_karyawan = c.id');
+        $this->db->where('YEAR(sb.tgl_setor)', $tahun);
+        $this->db->group_by('c.id, MONTH(sb.tgl_setor)');
         $rows = $this->db->get()->result_array();
 
         $rekap_setor = [];
