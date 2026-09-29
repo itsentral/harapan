@@ -35,15 +35,6 @@
                     $grand_total_target = array_fill(1, 12, 0);
                     $grand_total_realisasi = array_fill(1, 12, 0);
 
-                    // Grand total setor bank per bulan (hanya tampil di Total Cabang, tidak per sales)
-                    $grand_total_setor = array_fill(1, 12, 0);
-                    foreach ($sales as $s):
-                        foreach ($bulan as $b):
-                            $bln_no = (int)$b['bulan_no'];
-                            $grand_total_setor[$bln_no] += $rekap_setor[$s['id']][$bln_no] ?? 0;
-                        endforeach;
-                    endforeach;
-
                     foreach ($sales as $s):
                         $row_t_target = 0;
                         $row_t_realisasi = 0;
@@ -99,7 +90,7 @@
                 </tbody>
                 <tfoot>
                     <tr class="bg-info">
-                        <td rowspan="3" style="vertical-align:middle; font-weight:bold;">Target Cabang</td>
+                        <td rowspan="2" style="vertical-align:middle; font-weight:bold;">Target Cabang</td>
                         <td>Target Penagihan</td>
                         <?php $total_cabang_t = 0;
                         foreach ($bulan as $b):
@@ -132,23 +123,6 @@
                         <?php endif;
                         endforeach; ?>
                         <td class="text-right"><b><?= number_format($total_cabang_r) ?></b></td>
-                    </tr>
-                    <tr class="bg-info">
-                        <td>Realisasi Setor Bank</td>
-                        <?php $total_cabang_s = 0;
-                        foreach ($bulan as $b):
-                            $bln_no = (int)$b['bulan_no'];
-                            if ($tahun_pilih == $tahun_sekarang && $bln_no > $bulan_sekarang):
-                        ?>
-                                <td class="text-center text-muted">-</td>
-                            <?php else:
-                                $gs = $grand_total_setor[$bln_no];
-                                $total_cabang_s += $gs;
-                            ?>
-                                <td class="text-right"><b><?= number_format($gs) ?></b></td>
-                        <?php endif;
-                        endforeach; ?>
-                        <td class="text-right"><b><?= number_format($total_cabang_s) ?></b></td>
                     </tr>
                 </tfoot>
             </table>
