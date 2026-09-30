@@ -134,7 +134,8 @@ class Report_penjualan_hpp_delivery_model extends BF_Model
 
         // Closure: apply filters
         $apply_filters = function () use ($tgl_dari, $tgl_sampai) {
-            $this->db->where('IFNULL(i.is_cancel, 0) =', 0, false);
+            // is_cancel: 1 = credit note (batal), 2 = partial CN (penjualan masih ada)
+            $this->db->where('IFNULL(i.is_cancel, 0) <>', 1, false);
             $this->db->where('IFNULL(dt.qty, 0) >', 0, false);
 
             if (!empty($tgl_dari) && !empty($tgl_sampai)) {
@@ -225,7 +226,7 @@ class Report_penjualan_hpp_delivery_model extends BF_Model
             FROM tr_invoice_sales_detail dt
             INNER JOIN tr_invoice_sales i
                 ON i.id_invoice = dt.id_invoice
-            WHERE IFNULL(i.is_cancel, 0) = 0
+            WHERE IFNULL(i.is_cancel, 0) <> 1
               AND IFNULL(dt.qty, 0) > 0
         ";
 
