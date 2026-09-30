@@ -214,6 +214,13 @@ class Penerimaan extends Admin_Controller
                     throw new Exception("Invoice {$row['id_invoice']} tidak ditemukan");
                 }
 
+                // Validasi kepemilikan: invoice harus milik customer yang dipilih di header.
+                // Mencegah pembayaran nyasar ke customer lain bila baris invoice
+                // customer sebelumnya tertinggal di form.
+                if ((string)$invoice->id_customer !== (string)$id_customer) {
+                    throw new Exception("Invoice {$row['id_invoice']} bukan milik customer {$customer->name_customer}. Pembayaran dibatalkan.");
+                }
+
                 $total_bayar  = str_replace(',', '', ($row['total_bayar']));
                 $tagihan      = str_replace(',', '', ($row['tagihan']));
                 $sisa_invoice = str_replace(',', '', ($row['sisa_invoice']));
