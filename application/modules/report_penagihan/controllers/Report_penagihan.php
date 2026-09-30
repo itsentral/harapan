@@ -345,8 +345,11 @@ class Report_penagihan extends Admin_Controller
         $this->db->where('c.department', '2');
         $invoices = $this->db->get()->result_array();
 
-        // 2) Bulk-load total pembayaran per invoice per bulan (YYYY-MM)
-        $this->db->select("pd.no_invoice, DATE_FORMAT(p.tgl_pembayaran, '%Y-%m') as ym, SUM(pd.total_bayar_idr) as amt", false);
+        // 2) Bulk-load total pelunasan per invoice per bulan (YYYY-MM).
+        // Pelunasan = uang bank riil (total_bayar_idr) + credit note (total_cn_idr)
+        // + pembulatan kekurangan (pembulatan_idr), konsisten dengan cara modul
+        // Penerimaan menutup sisa invoice menjadi lunas.
+        $this->db->select("pd.no_invoice, DATE_FORMAT(p.tgl_pembayaran, '%Y-%m') as ym, SUM(pd.total_bayar_idr + COALESCE(pd.total_cn_idr,0) + COALESCE(pd.pembulatan_idr,0)) as amt", false);
         $this->db->from('tr_invoice_payment_detail pd');
         $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = pd.kd_pembayaran');
         $this->db->group_by("pd.no_invoice, DATE_FORMAT(p.tgl_pembayaran, '%Y-%m')");
@@ -516,7 +519,9 @@ class Report_penagihan extends Admin_Controller
         $bayar_cutoff_map = [];
         $invoice_ids = array_column($invoices_sales, 'id_invoice');
         if (!empty($invoice_ids)) {
-            $this->db->select("pd.no_invoice, SUM(pd.total_bayar_idr) as amt", false);
+            // Pelunasan = bayar bank riil + credit note + pembulatan kekurangan,
+            // konsisten dengan cara modul Penerimaan menutup sisa invoice.
+            $this->db->select("pd.no_invoice, SUM(pd.total_bayar_idr + COALESCE(pd.total_cn_idr,0) + COALESCE(pd.pembulatan_idr,0)) as amt", false);
             $this->db->from('tr_invoice_payment_detail pd');
             $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = pd.kd_pembayaran');
             $this->db->where_in('pd.no_invoice', $invoice_ids);
@@ -668,7 +673,7 @@ class Report_penagihan extends Admin_Controller
                 pd.kd_pembayaran as no_penerimaan,
                 (
                     a.grand_total - COALESCE((
-                        SELECT SUM(pd2.total_bayar_idr)
+                        SELECT SUM(pd2.total_bayar_idr + COALESCE(pd2.total_cn_idr,0) + COALESCE(pd2.pembulatan_idr,0))
                         FROM tr_invoice_payment_detail pd2
                         JOIN tr_invoice_payment p2 ON p2.kd_pembayaran = pd2.kd_pembayaran
                         WHERE pd2.no_invoice = a.id_invoice
@@ -706,7 +711,7 @@ class Report_penagihan extends Admin_Controller
                 pd.kd_pembayaran as no_penerimaan,
                 (
                     a.grand_total - COALESCE((
-                        SELECT SUM(pd2.total_bayar_idr)
+                        SELECT SUM(pd2.total_bayar_idr + COALESCE(pd2.total_cn_idr,0) + COALESCE(pd2.pembulatan_idr,0))
                         FROM tr_invoice_payment_detail pd2
                         JOIN tr_invoice_payment p2 ON p2.kd_pembayaran = pd2.kd_pembayaran
                         WHERE pd2.no_invoice = a.id_invoice

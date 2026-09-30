@@ -69,8 +69,13 @@ class Report_piutang_model extends BF_Model
         $rows = [];
 
         foreach ($all_invoices as $inv) {
-            // Hitung total bayar untuk invoice ini s/d tanggal
+            // Hitung total pelunasan untuk invoice ini s/d tanggal.
+            // Pelunasan = uang bank riil (total_bayar_idr) + credit note (total_cn_idr)
+            // + pembulatan kekurangan (pembulatan_idr), konsisten dengan cara modul
+            // Penerimaan menutup sisa invoice menjadi lunas.
             $this->db->select('COALESCE(SUM(d.total_bayar_idr), 0) AS total_bayar');
+            $this->db->select('COALESCE(SUM(d.total_cn_idr), 0) AS total_cn');
+            $this->db->select('COALESCE(SUM(d.pembulatan_idr), 0) AS total_pembulatan');
             $this->db->from('tr_invoice_payment_detail d');
             $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = d.kd_pembayaran', 'inner');
             $this->db->where('d.no_invoice', $inv['id_invoice']);
@@ -78,13 +83,19 @@ class Report_piutang_model extends BF_Model
             $bayar_result = $this->db->get();
 
             $total_bayar_sd_tgl = 0;
+            $total_pelunasan_sd_tgl = 0;
             if ($bayar_result) {
                 $bayar_row = $bayar_result->row_array();
-                $total_bayar_sd_tgl = $bayar_row ? (float)$bayar_row['total_bayar'] : 0;
+                if ($bayar_row) {
+                    $total_bayar_sd_tgl = (float)$bayar_row['total_bayar'];
+                    $total_pelunasan_sd_tgl = (float)$bayar_row['total_bayar']
+                        + (float)$bayar_row['total_cn']
+                        + (float)$bayar_row['total_pembulatan'];
+                }
             }
 
-            // Skip invoice yang sudah lunas
-            if ((float)$inv['nilai_invoice'] <= $total_bayar_sd_tgl) {
+            // Skip invoice yang sudah lunas (pelunasan mencakup bayar + CN + pembulatan)
+            if ((float)$inv['nilai_invoice'] <= $total_pelunasan_sd_tgl) {
                 continue;
             }
 

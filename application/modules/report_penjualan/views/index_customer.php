@@ -46,6 +46,15 @@
                     </tr>
                 </thead>
                 <tbody></tbody>
+                <tfoot>
+                    <tr style="font-weight:bold; background:#f5f5f5;">
+                        <th colspan="2" class="text-center">Total</th>
+                        <th class="text-right" id="footTotalInvoice">0</th>
+                        <th class="text-right" id="footTotalBayar">0</th>
+                        <th class="text-right" id="footTotalPiutang">0</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
@@ -140,12 +149,17 @@
             "searching": true,
             "responsive": true,
             "aaSorting": [
-                [1, "desc"]
+                [1, "asc"]
             ],
             "columnDefs": [{
-                "targets": 'no-sort',
-                "orderable": false,
-            }],
+                    "targets": [0, 5],
+                    "orderable": false
+                },
+                {
+                    "targets": 'no-sort',
+                    "orderable": false
+                }
+            ],
             "sPaginationType": "simple_numbers",
             "iDisplayLength": 10,
             "aLengthMenu": [
@@ -159,6 +173,19 @@
                     d.tgl_dari = $('#tgl_dari').val();
                     d.tgl_sampai = $('#tgl_sampai').val();
                     d.id_sales = $('#id_sales').val();
+                },
+                dataSrc: function(json) {
+                    // isi footer grand total dari response
+                    if (json && json.grandTotal) {
+                        $('#footTotalInvoice').text(json.grandTotal.total_invoice);
+                        $('#footTotalBayar').text(json.grandTotal.total_bayar);
+                        $('#footTotalPiutang').text(json.grandTotal.total_piutang);
+                    } else {
+                        $('#footTotalInvoice').text('0');
+                        $('#footTotalBayar').text('0');
+                        $('#footTotalPiutang').text('0');
+                    }
+                    return json.data;
                 },
                 cache: false,
                 error: function() {

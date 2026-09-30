@@ -49,7 +49,7 @@ class Report_penjualan_model extends BF_Model
             $nestedData = [];
             $status = '';
 
-            if ($row['is_cancel'] == 1) {
+            if ($row['is_cancel'] == 1 || $row['is_cancel'] == 2) {
                 $status = "<span class='badge bg-red'>Credit Note</span>";
             } else {
                 if ($row['sts'] == 1) {
@@ -86,10 +86,17 @@ class Report_penjualan_model extends BF_Model
 
     public function get_query_json_report($like_value = NULL, $column_order = NULL, $column_dir = NULL, $limit_start = NULL, $limit_length = NULL, $tgl_dari = NULL, $tgl_sampai = NULL, $id_sales = NULL)
     {
+        // Mapping sesuai index kolom tabel di view:
+        // 0=No, 1=Nomor Invoice, 2=Tanggal, 3=Customer, 4=Total Invoice,
+        // 5=Total Bayar, 6=Piutang, 7=Umur, 8=Status
         $columns_order_by = [
-            0 => 'i.id_invoice',
-            1 => 'i.created_on',
-            2 => 'i.nm_customer',
+            1 => 'i.id_invoice',
+            2 => 'i.created_on',
+            3 => 'i.nm_customer',
+            4 => 'total',
+            5 => 'i.total_bayar',
+            6 => 'i.piutang',
+            7 => 'umur',
         ];
 
         // Helper filter (Tanggal & Sales)
@@ -249,12 +256,24 @@ class Report_penjualan_model extends BF_Model
             $urut++;
         }
 
+        // Grand total keseluruhan (semua data terfilter, bukan per halaman)
+        $grand = $this->get_grand_total_customer(
+            $requestData['search']['value'],
+            $tgl_dari,
+            $tgl_sampai,
+            $id_sales
+        );
 
         $json_data = [
             "draw"            => intval($requestData['draw']),
             "recordsTotal"    => intval($totalData),
             "recordsFiltered" => intval($totalFiltered),
-            "data"            => $data
+            "data"            => $data,
+            "grandTotal"      => [
+                "total_invoice" => number_format($grand['total_invoice']),
+                "total_bayar"   => number_format($grand['total_bayar']),
+                "total_piutang" => number_format($grand['total_piutang']),
+            ]
         ];
 
         echo json_encode($json_data);
@@ -262,9 +281,13 @@ class Report_penjualan_model extends BF_Model
 
     public function get_query_json_customer($like_value = NULL, $column_order = NULL, $column_dir = NULL, $limit_start = NULL, $limit_length = NULL, $tgl_dari = NULL, $tgl_sampai = NULL, $id_sales = NULL)
     {
+        // Mapping sesuai index kolom tabel di view:
+        // 0=No, 1=Customer, 2=Total Invoice, 3=Total Bayar, 4=Total Piutang, 5=Aksi
         $columns_order_by = [
-            0 => 'i.nm_customer',
-            1 => 'total_invoice',
+            1 => 'nm_customer',
+            2 => 'total_invoice',
+            3 => 'total_bayar',
+            4 => 'total_piutang',
         ];
 
         // Helper filter (Tanggal & Sales)
@@ -283,13 +306,11 @@ class Report_penjualan_model extends BF_Model
         };
 
         $select = '
-        i.id_invoice,
         i.id_customer,
         i.nm_customer,
         SUM(i.grand_total) AS total_invoice,
         SUM(i.total_bayar) AS total_bayar,
-        SUM(i.piutang) AS total_piutang,
-        i.created_on
+        SUM(i.piutang) AS total_piutang
     ';
 
         // =============================
@@ -299,7 +320,7 @@ class Report_penjualan_model extends BF_Model
         $this->db->from('tr_invoice_sales i');
         $this->db->where('i.is_cancel', null);
         $apply_filters();
-        $this->db->group_by('i.id_customer');
+        $this->db->group_by('i.id_customer, i.nm_customer');
         $totalData = $this->db->count_all_results();
 
         // =============================
@@ -316,7 +337,7 @@ class Report_penjualan_model extends BF_Model
             $this->db->group_end();
         }
 
-        $this->db->group_by('i.id_customer');
+        $this->db->group_by('i.id_customer, i.nm_customer');
         $totalFiltered = $this->db->count_all_results();
 
         // =============================
@@ -384,15 +405,17 @@ class Report_penjualan_model extends BF_Model
 
     public function get_export_customer($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL, $id_sales = NULL)
     {
+        // Disamakan dengan tampilan (get_query_json_customer): ambil total_invoice,
+        // total_bayar, dan total_piutang, group per id_customer + nm_customer.
         $this->db->select('
         i.id_customer,
         i.nm_customer,
         SUM(i.grand_total) AS total_invoice,
-        i.created_on
+        SUM(i.total_bayar) AS total_bayar,
+        SUM(i.piutang) AS total_piutang
     ');
         $this->db->from('tr_invoice_sales i');
         $this->db->where('i.is_cancel', null);
-        $this->db->group_by('i.id_customer');
 
         // Filter Sales (Join ke master customer)
         if (!empty($id_sales)) {
@@ -400,24 +423,66 @@ class Report_penjualan_model extends BF_Model
             $this->db->where('c.id_karyawan', $id_sales);
         }
 
-        // filter tanggal (created_on)
-        if (!empty($tgl_dari)) {
+        // filter tanggal (created_on) - samakan dengan grid: hanya aktif kalau
+        // kedua tanggal terisi
+        if (!empty($tgl_dari) && !empty($tgl_sampai)) {
             $this->db->where('DATE(i.created_on) >=', $tgl_dari);
-        }
-        if (!empty($tgl_sampai)) {
             $this->db->where('DATE(i.created_on) <=', $tgl_sampai);
         }
 
-        // search
+        // search - samakan dengan grid (hanya nm_customer)
         if (!empty($like_value)) {
             $this->db->group_start();
-            $this->db->like('i.id_invoice', $like_value);
-            $this->db->or_like('i.nm_customer', $like_value);
+            $this->db->like('i.nm_customer', $like_value);
             $this->db->group_end();
         }
 
-        $this->db->order_by('i.created_on', 'desc');
+        // group per id_customer + nm_customer & order by nama, sama dengan grid
+        $this->db->group_by('i.id_customer, i.nm_customer');
+        $this->db->order_by('i.nm_customer', 'asc');
         return $this->db->get()->result();
+    }
+
+    /**
+     * Grand total keseluruhan (semua data terfilter, tanpa paging) untuk footer grid.
+     * Filter disamakan dengan get_query_json_customer / grid.
+     */
+    public function get_grand_total_customer($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL, $id_sales = NULL)
+    {
+        $this->db->select('
+            SUM(i.grand_total) AS total_invoice,
+            SUM(i.total_bayar) AS total_bayar,
+            SUM(i.piutang) AS total_piutang
+        ', false);
+        $this->db->from('tr_invoice_sales i');
+        $this->db->where('i.is_cancel', null);
+
+        // Filter Sales (Join ke master customer)
+        if (!empty($id_sales)) {
+            $this->db->join('master_customers c', 'i.id_customer = c.id_customer');
+            $this->db->where('c.id_karyawan', $id_sales);
+        }
+
+        // filter tanggal (created_on) - samakan dengan grid
+        if (!empty($tgl_dari) && !empty($tgl_sampai)) {
+            $this->db->where('DATE(i.created_on) >=', $tgl_dari);
+            $this->db->where('DATE(i.created_on) <=', $tgl_sampai);
+        }
+
+        // search - samakan dengan grid (hanya nm_customer)
+        if (!empty($like_value)) {
+            $this->db->group_start();
+            $this->db->like('i.nm_customer', $like_value);
+            $this->db->group_end();
+        }
+
+        $row = $this->db->get()->row();
+
+        return [
+            'total_invoice' => (float) ($row->total_invoice ?? 0),
+            'total_bayar'   => (float) ($row->total_bayar ?? 0),
+            'total_piutang' => (float) ($row->total_piutang ?? 0),
+        ];
     }
 
     // =============================
@@ -460,12 +525,22 @@ class Report_penjualan_model extends BF_Model
             $urut++;
         }
 
+        // Grand total keseluruhan (semua data terfilter, bukan per halaman)
+        $grand = $this->get_grand_total_product(
+            $requestData['search']['value'],
+            $tgl_dari,
+            $tgl_sampai
+        );
 
         $json_data = [
             "draw"            => intval($requestData['draw']),
             "recordsTotal"    => intval($totalData),
             "recordsFiltered" => intval($totalFiltered),
-            "data"            => $data
+            "data"            => $data,
+            "grandTotal"      => [
+                "qty_total"       => number_format($grand['qty_total']),
+                "penjualan_total" => number_format($grand['penjualan_total']),
+            ]
         ];
 
         echo json_encode($json_data);
@@ -473,12 +548,13 @@ class Report_penjualan_model extends BF_Model
 
     public function get_query_json_product($like_value = NULL, $column_order = NULL, $column_dir = NULL, $limit_start = NULL, $limit_length = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
     {
-        // Kolom urutan DataTables: sesuaikan dengan tabel kamu (No, Nama Barang, Satuan, Kuantitas, Penjualan)
+        // Mapping sesuai index kolom tabel di view:
+        // 0=No, 1=Produk, 2=Satuan, 3=Kuantitas, 4=Penjualan
         $columns_order_by = [
-            0 => 'd.nm_produk',
-            1 => 'd.uom',
-            2 => 'qty_total',
-            3 => 'penjualan_total',
+            1 => 'nama_barang',
+            2 => 'd.uom',
+            3 => 'qty_total',
+            4 => 'penjualan_total',
         ];
 
         $apply_date_filter = function () use ($tgl_dari, $tgl_sampai) {
@@ -510,7 +586,7 @@ class Report_penjualan_model extends BF_Model
         $apply_date_filter();
 
         // count group unik produk+satuan (pakai id_produk jika ada, fallback nm_produk)
-        $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(d.id_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
+        $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(d.nm_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
         $totalData = (int) $this->db->get()->row()->total;
 
         // =============================
@@ -522,11 +598,11 @@ class Report_penjualan_model extends BF_Model
         $apply_date_filter();
         $apply_search_filter();
 
-        $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(d.id_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
+        $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(d.nm_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
         $totalFiltered = (int) $this->db->get()->row()->total;
 
         // =============================
-        // 3) data paginasi (group by produk+satuan)
+        // 3) data paginasi (group by nama produk+satuan - historis nama produk)
         // =============================
         $this->db->select("
         d.nm_produk AS nama_barang,
@@ -546,7 +622,7 @@ class Report_penjualan_model extends BF_Model
         if (isset($columns_order_by[$column_order])) {
             $this->db->order_by($columns_order_by[$column_order], $column_dir);
         } else {
-            $this->db->order_by('d.nm_produk', 'asc');
+            $this->db->order_by('nama_barang', 'asc');
         }
 
         if ($limit_length != -1) {
@@ -592,10 +668,49 @@ class Report_penjualan_model extends BF_Model
             $this->db->group_end();
         }
 
+        // group per nama produk+uom & order by nama, konsisten dengan grid
         $this->db->group_by('d.nm_produk, d.uom');
-        $this->db->order_by('d.nm_produk', 'asc');
+        $this->db->order_by('nama_barang', 'asc');
 
         return $this->db->get()->result();
+    }
+
+    /**
+     * Grand total keseluruhan (semua data terfilter, tanpa paging) untuk footer grid produk.
+     * Filter disamakan dengan get_query_json_product / grid.
+     */
+    public function get_grand_total_product($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
+    {
+        $this->db->select("
+            SUM(d.qty) AS qty_total,
+            SUM(d.subtotal) AS penjualan_total
+        ", false);
+        $this->db->from('tr_invoice_sales i');
+        $this->db->join('tr_invoice_sales_detail d', 'd.id_invoice = i.id_invoice', 'inner');
+        $this->db->where('i.is_cancel', null);
+
+        // filter tanggal (created_on) - samakan dengan grid
+        if (!empty($tgl_dari)) {
+            $this->db->where('DATE(i.created_on) >=', $tgl_dari);
+        }
+        if (!empty($tgl_sampai)) {
+            $this->db->where('DATE(i.created_on) <=', $tgl_sampai);
+        }
+
+        // search - samakan dengan grid
+        if (!empty($like_value)) {
+            $this->db->group_start();
+            $this->db->like('d.nm_produk', $like_value);
+            $this->db->or_like('d.uom', $like_value);
+            $this->db->group_end();
+        }
+
+        $row = $this->db->get()->row();
+
+        return [
+            'qty_total'       => (float) ($row->qty_total ?? 0),
+            'penjualan_total' => (float) ($row->penjualan_total ?? 0),
+        ];
     }
 
     // =============================
@@ -990,9 +1105,7 @@ class Report_penjualan_model extends BF_Model
         $this->db->where('i.is_cancel', NULL);
         $apply_filters();
 
-        $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(i.id_customer,''),'|',IFNULL(d.id_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
-        // kalau tidak ada i.id_customer, ganti:
-        // $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(i.nm_customer,''),'|',IFNULL(d.id_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
+        $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(i.nm_customer,''),'|',IFNULL(d.nm_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
 
         $totalData = (int)$this->db->get()->row()->total;
 
@@ -1003,9 +1116,7 @@ class Report_penjualan_model extends BF_Model
         $apply_filters();
         $apply_search_filter();
 
-        $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(i.id_customer,''),'|',IFNULL(d.id_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
-        // alternatif:
-        // $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(i.nm_customer,''),'|',IFNULL(d.id_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
+        $this->db->select("COUNT(DISTINCT CONCAT(IFNULL(i.nm_customer,''),'|',IFNULL(d.nm_produk,''),'|',IFNULL(d.uom,''))) AS total", false);
 
         $totalFiltered = (int)$this->db->get()->row()->total;
 
@@ -1044,8 +1155,9 @@ class Report_penjualan_model extends BF_Model
         ];
     }
 
-    public function get_export_customer_per_barang($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
+    public function get_export_customer_per_barang($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL, $id_sales = NULL)
     {
+        // Group per nm_customer + nm_produk + uom, konsisten dengan grid.
         $this->db->select("
         IFNULL(i.nm_customer,'-') AS pelanggan,
         d.nm_produk AS nama_barang,
@@ -1057,6 +1169,12 @@ class Report_penjualan_model extends BF_Model
         $this->db->from('tr_invoice_sales i');
         $this->db->join('tr_invoice_sales_detail d', 'd.id_invoice = i.id_invoice', 'inner');
         $this->db->where('i.is_cancel', NULL);
+
+        // Filter Sales (join ke master customer) - samakan dengan grid
+        if (!empty($id_sales)) {
+            $this->db->join('master_customers c', 'i.id_customer = c.id_customer');
+            $this->db->where('c.id_karyawan', $id_sales);
+        }
 
         if (!empty($tgl_dari))   $this->db->where('DATE(i.created_on) >=', $tgl_dari);
         if (!empty($tgl_sampai)) $this->db->where('DATE(i.created_on) <=', $tgl_sampai);
@@ -1248,7 +1366,7 @@ class Report_penjualan_model extends BF_Model
         $totalActualScore = array_sum($totalActual);
 
         $resultRows[] = [
-            'nama_sales' => 'Target Cabang',
+            'nama_sales' => 'TARGET CABANG',
             'tipe' => 'Target',
             'jan' => $totalTarget['jan'],
             'feb' => $totalTarget['feb'],
@@ -1428,7 +1546,7 @@ class Report_penjualan_model extends BF_Model
         $totalActualScore = array_sum($totalActual);
 
         $resultRows[] = (object)[
-            'nama_sales' => 'Target Cabang',
+            'nama_sales' => 'TARGET CABANG',
             'tipe' => 'Target',
             'jan' => $totalTarget['jan'],
             'feb' => $totalTarget['feb'],

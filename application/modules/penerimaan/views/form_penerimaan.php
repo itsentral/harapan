@@ -293,6 +293,16 @@
             generateJurnal();
         });
 
+        // Reset daftar invoice bila customer diganti.
+        // Tanpa ini, invoice milik customer sebelumnya bisa tertinggal di tabel
+        // dan ikut tersimpan sehingga pembayaran nyasar ke customer lain.
+        $('#id_customer').on('change', function() {
+            selectedInvoiceIds = [];
+            $('#tableInv tbody').empty();
+            updateInvoiceTotals();
+            generateJurnal();
+        });
+
         $(document).on('click', '.btn-remove', function() {
             const $row = $(this).closest('tr');
             const id_invoice = $row.find('input[name*="[id_invoice]"]').val();

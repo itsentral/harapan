@@ -87,14 +87,16 @@ class Report_debt extends Admin_Controller
             // pembayarannya baru terjadi setelah cutoff, sehingga nilainya carry-forward.
             //
             // Aging late/bad debt = selisih jatuh_tempo terhadap hari ini.
+            // Sisa piutang harus ikut dikurangi pembulatan kekurangan (pembulatan_idr),
+            // konsisten dengan cara modul Penerimaan menutup sisa invoice menjadi lunas.
             $this->db->select("
                 c.id as id_sales,
-                SUM(GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0), 0)) as total_piutang,
+                SUM(GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0) - COALESCE(bayar.total_pembulatan, 0), 0)) as total_piutang,
                 SUM(CASE WHEN DATEDIFF('$today', a.jatuh_tempo) BETWEEN 15 AND 30
-                         THEN GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0), 0)
+                         THEN GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0) - COALESCE(bayar.total_pembulatan, 0), 0)
                          ELSE 0 END) as aging_15_30,
                 SUM(CASE WHEN DATEDIFF('$today', a.jatuh_tempo) >= 31
-                         THEN GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0), 0)
+                         THEN GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0) - COALESCE(bayar.total_pembulatan, 0), 0)
                          ELSE 0 END) as aging_30_up
             ", false);
             $this->db->from('tr_invoice_sales a');
@@ -103,7 +105,8 @@ class Report_debt extends Admin_Controller
             $this->db->join("(
                 SELECT pd.no_invoice,
                        SUM(pd.total_bayar_idr) as total_bayar,
-                       SUM(pd.total_cn_idr) as total_cn
+                       SUM(pd.total_cn_idr) as total_cn,
+                       SUM(pd.pembulatan_idr) as total_pembulatan
                 FROM tr_invoice_payment_detail pd
                 JOIN tr_invoice_payment p ON p.kd_pembayaran = pd.kd_pembayaran
                 WHERE p.tgl_pembayaran <= '$cutoff_date'
@@ -166,6 +169,8 @@ class Report_debt extends Admin_Controller
         // Hari lewat / kategori late-bad debt dihitung dari jatuh_tempo ke hari ini.
         $today = date('Y-m-d');
 
+        // Sisa piutang ikut dikurangi pembulatan kekurangan (pembulatan_idr),
+        // konsisten dengan cara modul Penerimaan menutup sisa invoice menjadi lunas.
         $this->db->select("
             a.id_invoice as no_invoice,
             a.nm_customer,
@@ -173,7 +178,7 @@ class Report_debt extends Admin_Controller
             a.jatuh_tempo,
             a.grand_total as total_invoice,
             COALESCE(bayar.total_bayar, 0) as total_bayar,
-            GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0), 0) as piutang,
+            GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0) - COALESCE(bayar.total_pembulatan, 0), 0) as piutang,
             DATEDIFF('$today', a.jatuh_tempo) as hari_lewat
         ", false);
         $this->db->from('tr_invoice_sales a');
@@ -181,7 +186,8 @@ class Report_debt extends Admin_Controller
         $this->db->join("(
             SELECT pd.no_invoice,
                    SUM(pd.total_bayar_idr) as total_bayar,
-                   SUM(pd.total_cn_idr) as total_cn
+                   SUM(pd.total_cn_idr) as total_cn,
+                   SUM(pd.pembulatan_idr) as total_pembulatan
             FROM tr_invoice_payment_detail pd
             JOIN tr_invoice_payment p ON p.kd_pembayaran = pd.kd_pembayaran
             WHERE p.tgl_pembayaran <= '$cutoff_date'
