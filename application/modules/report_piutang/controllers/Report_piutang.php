@@ -90,8 +90,10 @@ class Report_piutang extends Admin_Controller
         $style_header = [
             'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill'      => ['type' => PHPExcel_Style_Fill::FILL_SOLID, 'color' => ['rgb' => '1A5276']],
-            'alignment' => ['horizontal' => PHPExcel_Style_Alignment::HORIZONTAL_CENTER,
-                            'vertical'   => PHPExcel_Style_Alignment::VERTICAL_CENTER],
+            'alignment' => [
+                'horizontal' => PHPExcel_Style_Alignment::HORIZONTAL_CENTER,
+                'vertical'   => PHPExcel_Style_Alignment::VERTICAL_CENTER
+            ],
             'borders'   => ['allborders' => ['style' => PHPExcel_Style_Border::BORDER_THIN]],
         ];
         $style_data = [
@@ -115,8 +117,17 @@ class Report_piutang extends Admin_Controller
         $sheet->getStyle('A2')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
         // Header kolom
-        $headers = ['Customer', 'Tgl Invoice', 'No Invoice', 'Nilai Invoice',
-                    'Kode Penerimaan', 'Tgl Bayar', 'Nilai Bayar', 'Total Bayar', 'Sisa Piutang'];
+        $headers = [
+            'Customer',
+            'Tanggal Invoice',
+            'No Invoice',
+            'Nilai Invoice',
+            'Kode Penerimaan',
+            'Tanggal Bayar',
+            'Nilai Bayar',
+            'Total Bayar',
+            'Sisa Piutang'
+        ];
         $cols    = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
         foreach ($headers as $i => $h) {
@@ -127,8 +138,20 @@ class Report_piutang extends Admin_Controller
 
         // Data rows
         $row = 5;
-        $months_id = [1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',5=>'Mei',6=>'Jun',
-                      7=>'Jul',8=>'Agu',9=>'Sep',10=>'Okt',11=>'Nov',12=>'Des'];
+        $months_id = [
+            1 => 'Jan',
+            2 => 'Feb',
+            3 => 'Mar',
+            4 => 'Apr',
+            5 => 'Mei',
+            6 => 'Jun',
+            7 => 'Jul',
+            8 => 'Agu',
+            9 => 'Sep',
+            10 => 'Okt',
+            11 => 'Nov',
+            12 => 'Des'
+        ];
 
         foreach ($data_report as $d) {
             if ($d['is_first_row']) {

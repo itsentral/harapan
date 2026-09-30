@@ -154,7 +154,8 @@ class Report_penagihan extends Admin_Controller
 
         foreach ($sales as $s) {
             // Merge Nama Sales (3 baris: Target, Realisasi Tagihan, Realisasi Setor Bank)
-            $sheet->setCellValue('A' . $r, strtoupper($s['nm_karyawan']));
+            //$sheet->setCellValue('A' . $r, strtoupper($s['nm_karyawan']));
+            $sheet->setCellValue('A' . $r, ucwords($s['nm_karyawan']));
             $sheet->mergeCells('A' . $r . ':A' . ($r + 2));
             $sheet->getStyle('A' . $r)->getAlignment()->setVertical(PHPExcel_Style_Alignment::VERTICAL_CENTER);
 

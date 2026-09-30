@@ -385,7 +385,7 @@ class Report_debt extends Admin_Controller
         $r = $rowHeader + 1;
         foreach ($sales as $s) {
             // Styling Nama Sales
-            $sheet->setCellValue('A' . $r, strtoupper($s['nm_karyawan']));
+            $sheet->setCellValue('A' . $r, ucwords($s['nm_karyawan']));
             $sheet->mergeCells('A' . $r . ':A' . ($r + 8));
             $sheet->getStyle('A' . $r)->getAlignment()->setVertical(PHPExcel_Style_Alignment::VERTICAL_CENTER);
 

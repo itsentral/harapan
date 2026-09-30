@@ -130,28 +130,51 @@ class Report_piutang_kasir extends Admin_Controller
 
         // Header tabel
         $row = 7;
-        $headers = ['Tanggal Kasir', 'Kode Trans Kasir', 'Setoran Sales ke Kasir', 'Sales', 'Kode Trans Bank', 'Tanggal Bank', 'Setor Kasir ke Bank'];
+        $headers = ['Tanggal', 'Kode Trans Kasir', 'Setoran Sales ke Kasir', 'Sales', 'Kode Trans Bank', 'Tanggal Bank', 'Setor Kasir Penjualan'];
         $cols    = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
         foreach ($headers as $i => $h) {
             $sheet->setCellValue($cols[$i] . $row, $h);
         }
         $sheet->getStyle('A' . $row . ':G' . $row)->applyFromArray($styleHeader);
 
+        // Pre-process: hitung jumlah baris per grup bank & tandai baris pertama,
+        // supaya kolom bank (Kode Trans Bank, Tanggal Bank, Setor Kasir) di-merge
+        // dan hanya tampil sekali per grup — sama seperti tampilan (rowspan).
+        $bank_rowspan = [];
+        $bank_first   = [];
+        foreach ($rows as $i => $r) {
+            $bid = $r['id_setor_bank'] ?? null;
+            if (!empty($bid)) {
+                if (!isset($bank_rowspan[$bid])) {
+                    $bank_rowspan[$bid] = 0;
+                    $bank_first[$bid]   = $i;
+                }
+                $bank_rowspan[$bid]++;
+            }
+        }
+
         $row++;
-        $seen_bank_excel = [];
-        foreach ($rows as $r) {
+        foreach ($rows as $i => $r) {
             $sheet->setCellValue('A' . $row, date('d/m/Y', strtotime($r['tgl_kasir'])));
             $sheet->setCellValue('B' . $row, $r['id_kasir']);
             $sheet->setCellValue('C' . $row, $r['setoran_sales']);
             $sheet->setCellValue('D' . $row, $r['sales']);
 
-            if (!empty($r['id_setor_bank'])) {
+            $bid = $r['id_setor_bank'] ?? null;
+            if (!empty($bid) && isset($bank_first[$bid]) && $bank_first[$bid] === $i) {
+                // Baris pertama grup bank -> isi nilai & merge vertikal sebanyak rowspan
+                $rowspan = $bank_rowspan[$bid];
                 $sheet->setCellValue('E' . $row, $r['id_setor_bank']);
                 $sheet->setCellValue('F' . $row, date('d/m/Y', strtotime($r['tgl_bank'])));
-                // total bank hanya tampil di baris pertama kemunculan id_setor_bank
-                if (!isset($seen_bank_excel[$r['id_setor_bank']])) {
-                    $sheet->setCellValue('G' . $row, $r['total_bank']);
-                    $seen_bank_excel[$r['id_setor_bank']] = true;
+                $sheet->setCellValue('G' . $row, $r['total_bank']);
+
+                if ($rowspan > 1) {
+                    $rowEnd = $row + $rowspan - 1;
+                    $sheet->mergeCells('E' . $row . ':E' . $rowEnd);
+                    $sheet->mergeCells('F' . $row . ':F' . $rowEnd);
+                    $sheet->mergeCells('G' . $row . ':G' . $rowEnd);
+                    // vertical center biar rapi
+                    $sheet->getStyle('E' . $row . ':G' . $rowEnd)->getAlignment()->setVertical(PHPExcel_Style_Alignment::VERTICAL_CENTER);
                 }
             }
 

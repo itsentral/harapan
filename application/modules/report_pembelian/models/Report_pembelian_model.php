@@ -131,6 +131,37 @@ class Report_pembelian_model extends BF_Model
     }
 
     // =============================
+    // Export Daftar Faktur Pembelian (mirror get_query_json_report)
+    // =============================
+    public function get_export_report($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
+    {
+        // Gunakan filter yang PERSIS sama dengan get_query_json_report()
+        // agar hasil Excel identik dengan tampilan list Daftar Faktur Pembelian.
+        $this->db->select('i.id, i.invoice_date, i.nm_supplier, i.total_invoice');
+        $this->db->from('tr_invoice_po i');
+
+        // Filter tanggal: hanya aktif bila KEDUA tanggal terisi (sama seperti list)
+        if (!empty($tgl_dari) && !empty($tgl_sampai)) {
+            $this->db->where('i.invoice_date >=', $tgl_dari);
+            $this->db->where('i.invoice_date <=', $tgl_sampai);
+        }
+
+        // Search: kolom sama dengan list (i.id, i.nm_supplier)
+        if (!empty($like_value)) {
+            $this->db->group_start();
+            $this->db->like('i.id', $like_value);
+            $this->db->or_like('i.nm_supplier', $like_value);
+            $this->db->group_end();
+        }
+
+        $this->db->order_by('i.invoice_date', 'desc');
+
+        $query = $this->db->get();
+
+        return ($query) ? $query->result() : [];
+    }
+
+    // =============================
     // Histori Pembelian PR, PO, Inc, Receiv Inv, Payment
     // =============================
     public function get_json_history_pembelian()
@@ -202,6 +233,10 @@ class Report_pembelian_model extends BF_Model
         // Bangun WHERE conditions secara manual agar bisa dipakai di COUNT dan data query
         $where_parts = [];
         $binds       = [];
+
+        // Hanya tampilkan PR yang punya PO (buang baris PR tanpa PO).
+        // Menjaga total selalu konsisten antara list & export.
+        $where_parts[] = 'po.no_po IS NOT NULL';
 
         if (!empty($tgl_dari) && !empty($tgl_sampai)) {
             $where_parts[] = 'po.tanggal >= ?';
@@ -282,58 +317,66 @@ class Report_pembelian_model extends BF_Model
 
     public function get_export_history($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
     {
-        // 1. Definisikan Subquery untuk menyatukan 3 sumber PR
-        $subquery_pr = "(
-        SELECT no_pr, po_number AS no_po, 'Product' AS tipe_pr FROM material_planning_base_on_produksi
-        UNION ALL
-        SELECT no_pengajuan AS no_pr, no_po, 'Rutin' AS tipe_pr FROM rutin_non_planning_header
+        // Gunakan raw query (bukan Query Builder) karena Query Builder tidak dapat
+        // menangani derived-table subquery UNION dengan benar -> $this->db->get()
+        // mengembalikan FALSE sehingga ->result() error.
+        // Pola ini konsisten dengan get_query_history_pemebelian().
 
-    ) AS pr_combined";
+        $where_parts = [];
+        $binds       = [];
 
-        // 2. Seleksi kolom (Tambahkan tipe_pr agar di Excel muncul keterangan jenis PR-nya)
-        $this->db->select('
-        pr_combined.no_pr as permintaan_barang,
-        pr_combined.tipe_pr,
-        po.no_surat as pesanan_pembelian,
-        ic.kode_trans as penerimaan_barang,
-        inv.id as faktur_pembelian,
-        pa.id as pembayaran_pembelian,
-        po.tanggal as tgl_po,
-        po.term as term,
-        DATE_ADD(ic.tanggal, INTERVAL po.term DAY) as jatuh_tempo
-    ', FALSE);
-
-        // KUNCI: false untuk menghindari error syntax 1064
-        $this->db->from($subquery_pr, false);
-
-        // Join runtut sesuai alur pembelian menggunakan alias pr_combined
-        $this->db->join('tr_purchase_order po', 'po.no_po = pr_combined.no_po', 'left');
-        $this->db->join('tr_incoming_check ic', 'ic.no_ipp = po.no_po', 'left');
-        $this->db->join('tr_invoice_po inv', 'inv.no_po = po.no_surat', 'left');
-        $this->db->join('payment_approve pa', 'pa.no_doc = inv.id', 'left');
+        // Hanya tampilkan PR yang punya PO (buang baris PR tanpa PO).
+        // Menjaga total selalu konsisten antara list & export.
+        $where_parts[] = 'po.no_po IS NOT NULL';
 
         // Filter Tanggal (Berdasarkan tanggal PO)
-        if (!empty($tgl_dari)) {
-            $this->db->where('po.tanggal >=', $tgl_dari);
-        }
-        if (!empty($tgl_sampai)) {
-            $this->db->where('po.tanggal <=', $tgl_sampai);
+        // Samakan persis dengan list/datatable: filter tanggal HANYA aktif
+        // jika kedua tanggal terisi.
+        if (!empty($tgl_dari) && !empty($tgl_sampai)) {
+            $where_parts[] = 'po.tanggal >= ?';
+            $binds[]       = $tgl_dari;
+            $where_parts[] = 'po.tanggal <= ?';
+            $binds[]       = $tgl_sampai;
         }
 
-        // Search filter
+        // Search filter — kolom & urutan disamakan dengan list/datatable
         if (!empty($like_value)) {
-            $this->db->group_start();
-            $this->db->like('pr_combined.no_pr', $like_value);
-            $this->db->or_like('po.no_po', $like_value);
-            $this->db->or_like('ic.kode_trans', $like_value);
-            $this->db->or_like('inv.id', $like_value);
-            $this->db->group_end();
+            $like_escaped  = '%' . $this->db->escape_like_str($like_value) . '%';
+            $where_parts[] = "(pr_combined.no_pr LIKE ? OR po.no_po LIKE ? OR inv.id LIKE ?)";
+            $binds[]       = $like_escaped;
+            $binds[]       = $like_escaped;
+            $binds[]       = $like_escaped;
         }
 
-        // Urutan berdasarkan tanggal PO terbaru
-        $this->db->order_by('po.tanggal', 'desc');
+        $where_sql = !empty($where_parts) ? 'WHERE ' . implode(' AND ', $where_parts) : '';
 
-        return $this->db->get()->result();
+        $base_from = "FROM (
+            SELECT no_pr, po_number AS no_po, 'Product' AS tipe_pr FROM material_planning_base_on_produksi
+            UNION ALL
+            SELECT no_pengajuan AS no_pr, no_po, 'Rutin' AS tipe_pr FROM rutin_non_planning_header
+        ) AS pr_combined
+        LEFT JOIN tr_purchase_order po  ON po.no_po   = pr_combined.no_po
+        LEFT JOIN tr_incoming_check ic  ON ic.no_ipp  = po.no_po
+        LEFT JOIN tr_invoice_po inv     ON inv.no_po  = po.no_surat
+        LEFT JOIN payment_approve pa    ON pa.no_doc  = inv.id";
+
+        $data_sql = "SELECT
+            pr_combined.no_pr  AS permintaan_barang,
+            pr_combined.tipe_pr,
+            po.no_surat        AS pesanan_pembelian,
+            ic.kode_trans      AS penerimaan_barang,
+            inv.id             AS faktur_pembelian,
+            pa.id              AS pembayaran_pembelian,
+            po.tanggal         AS tgl_po,
+            po.term            AS term,
+            DATE_ADD(ic.tanggal, INTERVAL po.term DAY) AS jatuh_tempo
+        {$base_from}
+        {$where_sql}
+        ORDER BY po.tanggal DESC";
+
+        $query = $this->db->query($data_sql, $binds);
+
+        return ($query) ? $query->result() : [];
     }
 
     // =============================

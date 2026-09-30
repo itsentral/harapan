@@ -172,7 +172,8 @@ class Report_inventory_model extends BF_Model
         $this->db->from('warehouse_stock_per_days s');
         $this->db->join('warehouse w', 's.id_gudang = w.id', 'left');
         $this->db->like('s.tgl_backup', $tanggal);
-        $this->db->order_by('s.tgl_backup', 'desc');
+        // Samakan urutan dengan tampilan (DataTables default: kolom Code Product desc)
+        $this->db->order_by('s.code_product', 'desc');
         return $this->db->get()->result_array();
     }
 }
