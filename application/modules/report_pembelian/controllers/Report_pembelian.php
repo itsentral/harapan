@@ -37,6 +37,132 @@ class Report_pembelian extends Admin_Controller
     }
 
     // =============================
+    // Export Daftar Faktur Pembelian
+    // =============================
+    public function export_faktur_report()
+    {
+        set_time_limit(0);
+        ini_set('memory_limit', '1024M');
+
+        $tgl_dari   = $this->input->get('tgl_dari', true);
+        $tgl_sampai = $this->input->get('tgl_sampai', true);
+        $search     = $this->input->get('search', true);
+
+        // Ambil data faktur pembelian (mirror list Daftar Faktur Pembelian)
+        $rows = $this->Report_pembelian_model->get_export_report($search, $tgl_dari, $tgl_sampai);
+
+        $this->load->library("PHPExcel");
+        $objPHPExcel = new PHPExcel();
+        $sheet = $objPHPExcel->getActiveSheet();
+        $sheet->setTitle('Daftar Faktur Pembelian');
+
+        // STYLE
+        $styleTitle = [
+            'font' => ['bold' => true, 'size' => 14, 'color' => ['rgb' => '2C3E50']],
+            'alignment' => [
+                'horizontal' => PHPExcel_Style_Alignment::HORIZONTAL_CENTER,
+                'vertical'   => PHPExcel_Style_Alignment::VERTICAL_CENTER
+            ]
+        ];
+        $tableHeader = [
+            'font' => ['bold' => true],
+            'alignment' => [
+                'horizontal' => PHPExcel_Style_Alignment::HORIZONTAL_CENTER,
+                'vertical'   => PHPExcel_Style_Alignment::VERTICAL_CENTER
+            ],
+            'borders' => ['allborders' => ['style' => PHPExcel_Style_Border::BORDER_THIN]],
+            'fill' => [
+                'type'  => PHPExcel_Style_Fill::FILL_SOLID,
+                'color' => ['rgb' => 'D9EAD3']
+            ]
+        ];
+        $tableBody = [
+            'borders' => ['allborders' => ['style' => PHPExcel_Style_Border::BORDER_THIN]],
+            'alignment' => ['vertical' => PHPExcel_Style_Alignment::VERTICAL_CENTER]
+        ];
+
+        // Judul & Periode
+        $sheet->setCellValue('A1', 'DAFTAR FAKTUR PEMBELIAN');
+        $sheet->mergeCells('A1:E1');
+        $sheet->getStyle('A1:E1')->applyFromArray($styleTitle);
+
+        $periodeText = 'Periode Faktur: ';
+        if (!empty($tgl_dari) && !empty($tgl_sampai)) {
+            $periodeText .= date('d/m/Y', strtotime($tgl_dari)) . ' s/d ' . date('d/m/Y', strtotime($tgl_sampai));
+        } else {
+            $periodeText .= 'Semua';
+        }
+        $sheet->setCellValue('A2', $periodeText);
+        $sheet->mergeCells('A2:E2');
+
+        // Header Kolom (Baris 4)
+        $headers = [
+            'A' => 'No',
+            'B' => 'Nomor Invoice',
+            'C' => 'Tanggal',
+            'D' => 'Supplier',
+            'E' => 'Total'
+        ];
+        $rowHeader = 4;
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue($col . $rowHeader, $header);
+            $sheet->getStyle($col . $rowHeader)->applyFromArray($tableHeader);
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        $sheet->freezePane('A5');
+
+        // Isi Data
+        $rowNum = 5;
+        $no = 1;
+        $grandTotal = 0;
+
+        foreach ($rows as $row) {
+            $total = (float) ($row->total_invoice ?? 0);
+            $grandTotal += $total;
+
+            $sheet->setCellValueExplicit("A{$rowNum}", (string)$no++, PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("B{$rowNum}", strtoupper((string)($row->id ?? '-')), PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("C{$rowNum}", (string)(!empty($row->invoice_date) ? date('d/M/Y', strtotime($row->invoice_date)) : '-'), PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("D{$rowNum}", strtoupper((string)($row->nm_supplier ?? '-')), PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValue("E{$rowNum}", $total);
+            $sheet->getStyle("E{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
+
+            $sheet->getStyle("A{$rowNum}:E{$rowNum}")->applyFromArray($tableBody);
+            $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("C{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("E{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
+
+            $rowNum++;
+        }
+
+        // Baris Total
+        $sheet->setCellValue("D{$rowNum}", 'TOTAL');
+        $sheet->setCellValue("E{$rowNum}", $grandTotal);
+        $sheet->getStyle("E{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle("A{$rowNum}:E{$rowNum}")->applyFromArray($tableHeader);
+        $sheet->getStyle("D{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle("E{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
+
+        // Filename & Output
+        $filePeriode = (!empty($tgl_dari)) ? date('Ymd', strtotime($tgl_dari)) : 'all';
+        $filename = "Daftar_Faktur_Pembelian_{$filePeriode}.xls";
+
+        $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+
+        if (ob_get_level() > 0) ob_end_clean();
+
+        header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
+        header("Cache-Control: no-store, no-cache, must-revalidate");
+        header("Cache-Control: post-check=0, pre-check=0", false);
+        header("Pragma: no-cache");
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+
+        $objWriter->save("php://output");
+        exit;
+    }
+
+    // =============================
     // Histori Pembelian PR, PO, Inc, Receiv Inv, Payment
     // =============================
 
@@ -291,7 +417,7 @@ class Report_pembelian extends Admin_Controller
             'A' => 'No',
             'B' => 'Nama Barang',
             'C' => 'Kts (Unit#1)',
-            'D' => 'Total Pembelian (Nominal)'
+            'D' => 'Total Pembelian'
         ];
 
         $rowHeader = 4;
@@ -451,8 +577,8 @@ class Report_pembelian extends Admin_Controller
         // =========================
         $headers = [
             'A' => 'No',
-            'B' => 'Pemasok / Vendor',
-            'C' => 'Total Pembelian (Nominal)'
+            'B' => 'Pemasok',
+            'C' => 'Total Pembelian'
         ];
 
         $rowHeader = 4;

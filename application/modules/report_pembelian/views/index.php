@@ -59,7 +59,7 @@
             var tgl_sampai = $('#tgl_sampai').val();
             var searchVal = $('#example1_filter input').val();
 
-            var url = siteurl + active_controller + 'export_excel_report' +
+            var url = siteurl + active_controller + 'export_faktur_report' +
                 '?tgl_dari=' + encodeURIComponent(tgl_dari || '') +
                 '&tgl_sampai=' + encodeURIComponent(tgl_sampai || '') +
                 '&search=' + encodeURIComponent(searchVal || '');

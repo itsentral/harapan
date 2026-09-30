@@ -981,7 +981,8 @@ class Loading extends Admin_Controller
         $url = 'https://app.whacenter.com/api/send';
 
         $data = [
-            'device_id' => 'ea118812b9454dc34a477ae1c053f0fc',
+            //'device_id' => 'ea118812b9454dc34a477ae1c053f0fc', //device yang lama
+            'device_id' => 'c7c1b12f27cffcc9f49d92533a274c4d',
             'number'    => $number,
             'message'   => $message
         ];
