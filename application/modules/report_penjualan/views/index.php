@@ -99,12 +99,17 @@
             "searching": true,
             "responsive": true,
             "aaSorting": [
-                [1, "desc"]
+                [2, "desc"]
             ],
             "columnDefs": [{
-                "targets": 'no-sort',
-                "orderable": false,
-            }],
+                    "targets": [0, 8],
+                    "orderable": false
+                },
+                {
+                    "targets": 'no-sort',
+                    "orderable": false
+                }
+            ],
             "sPaginationType": "simple_numbers",
             "iDisplayLength": 10,
             "aLengthMenu": [
