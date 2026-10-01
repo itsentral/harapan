@@ -69,7 +69,7 @@ class Report_inventory extends Admin_Controller
 
         // 4) Header kolom (persis seperti tabel)
         $headers = [
-            'A' => '#',
+            'A' => 'No',
             'B' => 'Id Product',
             'C' => 'Code Product',
             'D' => 'Product',

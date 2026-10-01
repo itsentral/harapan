@@ -31,6 +31,13 @@
                     </tr>
                 </thead>
                 <tbody></tbody>
+                <tfoot>
+                    <tr style="font-weight:bold; background:#f5f5f5;">
+                        <th colspan="3" class="text-center">Total Nama Barang</th>
+                        <th class="text-right" id="footQty">0</th>
+                        <th class="text-right" id="footSales">0</th>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
@@ -78,12 +85,17 @@
             "searching": true,
             "responsive": true,
             "aaSorting": [
-                [1, "desc"]
+                [1, "asc"]
             ],
             "columnDefs": [{
-                "targets": 'no-sort',
-                "orderable": false,
-            }],
+                    "targets": [0],
+                    "orderable": false
+                },
+                {
+                    "targets": 'no-sort',
+                    "orderable": false
+                }
+            ],
             "sPaginationType": "simple_numbers",
             "iDisplayLength": 10,
             "aLengthMenu": [
@@ -96,6 +108,17 @@
                 data: function(d) {
                     d.tgl_dari = $('#tgl_dari').val();
                     d.tgl_sampai = $('#tgl_sampai').val();
+                },
+                dataSrc: function(json) {
+                    // isi footer grand total dari response
+                    if (json && json.grandTotal) {
+                        $('#footQty').text(json.grandTotal.qty_total);
+                        $('#footSales').text(json.grandTotal.penjualan_total);
+                    } else {
+                        $('#footQty').text('0');
+                        $('#footSales').text('0');
+                    }
+                    return json.data;
                 },
                 cache: false,
                 error: function() {

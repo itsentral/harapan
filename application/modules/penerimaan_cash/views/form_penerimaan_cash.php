@@ -261,6 +261,19 @@
             width: '100%'
         });
 
+        // Reset daftar invoice & state CN bila customer diganti.
+        // Tanpa ini, invoice milik customer sebelumnya bisa tertinggal di tabel
+        // dan ikut tersimpan sehingga pembayaran nyasar ke customer lain.
+        $('#id_customer').on('change', function() {
+            selectedIds = [];
+            selectedInvoices = [];
+            selectedInvoiceIds = [];
+            selectedCnIds = [];
+            selectedCnData = {};
+            $('#tableInv tbody').empty();
+            updateInvoiceTotals();
+        });
+
         $(document).on('input', 'input[name="total_bayar[]"]', function() {
             updateInvoiceTotals();
         });

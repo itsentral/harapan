@@ -89,12 +89,12 @@
                 res.data.forEach(function(r) {
 
                     // styling biar mirip excel
-                    var isTotalCabang = (r.nama_sales == "Target Cabang");
+                    var isTotalCabang = (r.nama_sales == "TARGET CABANG");
                     var rowStyle = "";
 
                     if (isTotalCabang) rowStyle = "style='background:#fff4cc;font-weight:bold;'";
                     if (r.tipe == "Actual (based on invoice)" && isTotalCabang) rowStyle = "style='background:#fff4cc;font-weight:bold;border-bottom:2px solid #333;'";
-                    if (r.tipe == "Target" && r.nama_sales != "" && r.nama_sales != "Target Cabang") rowStyle = "style='border-top:2px solid #333; font-weight:bold;'";
+                    if (r.tipe == "Target" && r.nama_sales != "" && r.nama_sales != "TARGET CABANG") rowStyle = "style='border-top:2px solid #333; font-weight:bold;'";
 
                     html += "<tr " + rowStyle + ">";
                     html += "<td>" + (r.nama_sales || "") + "</td>";
