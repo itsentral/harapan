@@ -1248,31 +1248,31 @@ class Report_penjualan_model extends BF_Model
         // =========================
         $this->db->select("
         c.id_karyawan,
-        SUM(CASE WHEN MONTH(i.delivery_date)=1  THEN i.grand_total ELSE 0 END) AS jan,
-        SUM(CASE WHEN MONTH(i.delivery_date)=2  THEN i.grand_total ELSE 0 END) AS feb,
-        SUM(CASE WHEN MONTH(i.delivery_date)=3  THEN i.grand_total ELSE 0 END) AS mar,
-        SUM(CASE WHEN MONTH(i.delivery_date)=4  THEN i.grand_total ELSE 0 END) AS apr,
-        SUM(CASE WHEN MONTH(i.delivery_date)=5  THEN i.grand_total ELSE 0 END) AS mei,
-        SUM(CASE WHEN MONTH(i.delivery_date)=6  THEN i.grand_total ELSE 0 END) AS jun,
-        SUM(CASE WHEN MONTH(i.delivery_date)=7  THEN i.grand_total ELSE 0 END) AS jul,
-        SUM(CASE WHEN MONTH(i.delivery_date)=8  THEN i.grand_total ELSE 0 END) AS agu,
-        SUM(CASE WHEN MONTH(i.delivery_date)=9  THEN i.grand_total ELSE 0 END) AS sep,
-        SUM(CASE WHEN MONTH(i.delivery_date)=10 THEN i.grand_total ELSE 0 END) AS okt,
-        SUM(CASE WHEN MONTH(i.delivery_date)=11 THEN i.grand_total ELSE 0 END) AS nov,
-        SUM(CASE WHEN MONTH(i.delivery_date)=12 THEN i.grand_total ELSE 0 END) AS des
+        SUM(CASE WHEN MONTH(i.created_on)=1  THEN i.grand_total ELSE 0 END) AS jan,
+        SUM(CASE WHEN MONTH(i.created_on)=2  THEN i.grand_total ELSE 0 END) AS feb,
+        SUM(CASE WHEN MONTH(i.created_on)=3  THEN i.grand_total ELSE 0 END) AS mar,
+        SUM(CASE WHEN MONTH(i.created_on)=4  THEN i.grand_total ELSE 0 END) AS apr,
+        SUM(CASE WHEN MONTH(i.created_on)=5  THEN i.grand_total ELSE 0 END) AS mei,
+        SUM(CASE WHEN MONTH(i.created_on)=6  THEN i.grand_total ELSE 0 END) AS jun,
+        SUM(CASE WHEN MONTH(i.created_on)=7  THEN i.grand_total ELSE 0 END) AS jul,
+        SUM(CASE WHEN MONTH(i.created_on)=8  THEN i.grand_total ELSE 0 END) AS agu,
+        SUM(CASE WHEN MONTH(i.created_on)=9  THEN i.grand_total ELSE 0 END) AS sep,
+        SUM(CASE WHEN MONTH(i.created_on)=10 THEN i.grand_total ELSE 0 END) AS okt,
+        SUM(CASE WHEN MONTH(i.created_on)=11 THEN i.grand_total ELSE 0 END) AS nov,
+        SUM(CASE WHEN MONTH(i.created_on)=12 THEN i.grand_total ELSE 0 END) AS des
     ", false);
 
         $this->db->from("tr_invoice_sales i");
         $this->db->join("master_customers c", "c.id_customer = i.id_customer", "left");
 
         // filter tahun / tanggal
-        $this->db->where("YEAR(i.delivery_date)", $tahun);
+        $this->db->where("YEAR(i.created_on)", $tahun);
 
         if (!empty($tgl_dari)) {
-            $this->db->where("DATE(i.delivery_date) >=", $tgl_dari);
+            $this->db->where("DATE(i.created_on) >=", $tgl_dari);
         }
         if (!empty($tgl_sampai)) {
-            $this->db->where("DATE(i.delivery_date) <=", $tgl_sampai);
+            $this->db->where("DATE(i.created_on) <=", $tgl_sampai);
         }
 
         // optional: invoice cancel tidak dihitung
@@ -1440,23 +1440,23 @@ class Report_penjualan_model extends BF_Model
         // =========================
         $this->db->select("
         c.id_karyawan,
-        SUM(CASE WHEN MONTH(i.delivery_date)=1  THEN i.grand_total ELSE 0 END) AS jan,
-        SUM(CASE WHEN MONTH(i.delivery_date)=2  THEN i.grand_total ELSE 0 END) AS feb,
-        SUM(CASE WHEN MONTH(i.delivery_date)=3  THEN i.grand_total ELSE 0 END) AS mar,
-        SUM(CASE WHEN MONTH(i.delivery_date)=4  THEN i.grand_total ELSE 0 END) AS apr,
-        SUM(CASE WHEN MONTH(i.delivery_date)=5  THEN i.grand_total ELSE 0 END) AS mei,
-        SUM(CASE WHEN MONTH(i.delivery_date)=6  THEN i.grand_total ELSE 0 END) AS jun,
-        SUM(CASE WHEN MONTH(i.delivery_date)=7  THEN i.grand_total ELSE 0 END) AS jul,
-        SUM(CASE WHEN MONTH(i.delivery_date)=8  THEN i.grand_total ELSE 0 END) AS agu,
-        SUM(CASE WHEN MONTH(i.delivery_date)=9  THEN i.grand_total ELSE 0 END) AS sep,
-        SUM(CASE WHEN MONTH(i.delivery_date)=10 THEN i.grand_total ELSE 0 END) AS okt,
-        SUM(CASE WHEN MONTH(i.delivery_date)=11 THEN i.grand_total ELSE 0 END) AS nov,
-        SUM(CASE WHEN MONTH(i.delivery_date)=12 THEN i.grand_total ELSE 0 END) AS des
+        SUM(CASE WHEN MONTH(i.created_on)=1  THEN i.grand_total ELSE 0 END) AS jan,
+        SUM(CASE WHEN MONTH(i.created_on)=2  THEN i.grand_total ELSE 0 END) AS feb,
+        SUM(CASE WHEN MONTH(i.created_on)=3  THEN i.grand_total ELSE 0 END) AS mar,
+        SUM(CASE WHEN MONTH(i.created_on)=4  THEN i.grand_total ELSE 0 END) AS apr,
+        SUM(CASE WHEN MONTH(i.created_on)=5  THEN i.grand_total ELSE 0 END) AS mei,
+        SUM(CASE WHEN MONTH(i.created_on)=6  THEN i.grand_total ELSE 0 END) AS jun,
+        SUM(CASE WHEN MONTH(i.created_on)=7  THEN i.grand_total ELSE 0 END) AS jul,
+        SUM(CASE WHEN MONTH(i.created_on)=8  THEN i.grand_total ELSE 0 END) AS agu,
+        SUM(CASE WHEN MONTH(i.created_on)=9  THEN i.grand_total ELSE 0 END) AS sep,
+        SUM(CASE WHEN MONTH(i.created_on)=10 THEN i.grand_total ELSE 0 END) AS okt,
+        SUM(CASE WHEN MONTH(i.created_on)=11 THEN i.grand_total ELSE 0 END) AS nov,
+        SUM(CASE WHEN MONTH(i.created_on)=12 THEN i.grand_total ELSE 0 END) AS des
     ", false);
 
         $this->db->from("tr_invoice_sales i");
         $this->db->join("master_customers c", "c.id_customer = i.id_customer", "left");
-        $this->db->where("YEAR(i.delivery_date)", $tahun);
+        $this->db->where("YEAR(i.created_on)", $tahun);
         $this->db->where("IFNULL(i.is_cancel,0) =", 0);
 
         // hanya customer yg punya sales
