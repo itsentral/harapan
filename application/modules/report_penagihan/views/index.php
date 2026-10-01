@@ -90,7 +90,7 @@
                             <td class="text-right"><b><?= number_format($row_t_realisasi) ?></b></td>
                         </tr>
                         <tr>
-                            <td>Realisasi Setor Bank</td>
+                            <td>Realisasi Setor Kasir/Bank</td>
                             <?php foreach ($bulan as $b):
                                 $bln_no = (int)$b['bulan_no'];
                                 if ($tahun_pilih == $tahun_sekarang && $bln_no > $bulan_sekarang):
@@ -145,7 +145,7 @@
                         <td class="text-right"><b><?= number_format($total_cabang_r) ?></b></td>
                     </tr>
                     <tr class="bg-info">
-                        <td>Realisasi Setor Bank</td>
+                        <td>Realisasi Setor Kasir/Bank</td>
                         <?php $total_cabang_s = 0;
                         foreach ($bulan as $b):
                             $bln_no = (int)$b['bulan_no'];
