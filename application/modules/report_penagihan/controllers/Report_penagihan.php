@@ -207,7 +207,7 @@ class Report_penagihan extends Admin_Controller
 
             // Baris Realisasi Setor Bank
             $r++;
-            $sheet->setCellValue('B' . $r, 'Realisasi Setor Bank');
+            $sheet->setCellValue('B' . $r, 'Realisasi Setor Kasir/Bank');
             $row_t_setor = 0;
             $c = 'C';
             foreach ($bulan as $b) {
@@ -280,7 +280,7 @@ class Report_penagihan extends Admin_Controller
         $sheet->getStyle('O' . $r)->getFont()->setBold(true);
 
         $r++;
-        $sheet->setCellValue('B' . $r, 'Realisasi Setor Bank');
+        $sheet->setCellValue('B' . $r, 'Realisasi Setor Kasir/Bank');
         $c = 'C';
         $total_cabang_s = 0;
         foreach ($bulan as $b) {
