@@ -975,86 +975,42 @@ class Incoming_check_model extends BF_Model
                     ->get()
                     ->result();
 
-                $id_supplier_memo   = '';
-                $nama_supplier_memo = '';
-                $no_reff_po_memo    = '';
-                if (!empty($data_incoming_memo)) {
-                    $id_supplier_memo   = $data_incoming_memo[0]->id_suplier ?? '';
-                    $nama_supplier_memo = $data_incoming_memo[0]->nama ?? '';
-                    $no_reff_po_memo    = $data_incoming_memo[0]->no_surat ?? '';
-                }
-
-                $memo_data = json_encode([
-                    'id_supplier'   => $id_supplier_memo,
-                    'nama_supplier' => $nama_supplier_memo,
-                    'no_reff'       => $no_reff_po_memo,
-                    'kode_trans'    => $kode_trans,
-                ]);
-
-                // ── Insert header gl_interface (nomor sudah ada, status pending) ──
-                $gl_header = [
-                    'nomor'           => $Nomor_JV,
-                    'tgl'             => $tgl_inv,
-                    'jenis'           => 'JV',
-                    'jenis_transaksi' => 'incoming',
-                    'keterangan'      => $keterangan,
-                    'jml'             => $total,
-                    'kdcab'           => '101',
-                    'bulan'           => $Bln,
-                    'tahun'           => $Thn,
-                    'user_id'         => $this->auth->user_id(),
-                    'memo'            => $memo_data,
-                    'status'          => 'pending',
-                    'created_at'      => date('Y-m-d H:i:s'),
+                // ── Insert header jurnal langsung ke buku besar (DBACC.javh) ──
+                $dataJVhead = [
+                    'nomor'         => $Nomor_JV,
+                    'tgl'           => $tgl_inv,
+                    'jml'           => $total,
+                    'koreksi_no'    => '-',
+                    'kdcab'         => '101',
+                    'jenis'         => 'JV',
+                    'keterangan'    => $keterangan,
+                    'bulan'         => $Bln,
+                    'tahun'         => $Thn,
+                    'user_id'       => $this->auth->user_id(),
+                    'memo'          => '',
+                    'tgl_jvkoreksi' => $tgl_inv,
+                    'ho_valid'      => '',
                 ];
-                $this->db->insert('gl_interface', $gl_header);
-                $id_gl = $this->db->insert_id();
+                $this->db->insert(DBACC . '.javh', $dataJVhead);
 
-                if (!$id_gl) {
-                    throw new Exception('Gagal insert gl_interface header.');
-                }
-
-                // ── Mapping id_material per baris COA dari incoming_details ──
-                // Baris jurnal dikirim dari form dengan urutan yang sama dengan incoming_details.
-                // Kita buat map: index baris → data material dari incoming_details yang sudah diproses.
-                $material_per_line = [];
-                foreach ($incoming_details as $det) {
-                    $material_per_line[] = [
-                        'id_material' => $det['id_material'],
-                        'nm_material' => $det['nm_material'] ?? ($material_map[$det['id_material']]['nm'] ?? ''),
-                        'id_gudang'   => '1', // gudang PUS
-                    ];
-                }
-
-                // ── Insert detail gl_interface (dengan data material) ──
+                // ── Insert detail jurnal langsung ke buku besar (DBACC.jurnal) ──
                 for ($i = 0; $i < count($typeArr); $i++) {
-                    // Ambil data material untuk baris ini (jika ada, pakai index modulo agar tidak out of bounds)
-                    $mat_idx  = $i < count($material_per_line) ? $i : (count($material_per_line) - 1);
-                    $mat_data = !empty($material_per_line) ? $material_per_line[$mat_idx] : [];
-
-                    $gl_detail = [
-                        'id_gl_interface' => $id_gl,
-                        'tipe'            => $typeArr[$i] ?? 'JV',
-                        'tanggal'         => $tglJArr[$i] ?? $tgl_inv,
-                        'no_perkiraan'    => $coaArr[$i] ?? '',
-                        'keterangan'      => $ketArr[$i] ?? $keterangan,
-                        'no_reff'         => $kode_trans,
-                        'no_request'      => $kode_trans,
-                        'debet'           => (float)($debetArr[$i] ?? 0),
-                        'kredit'          => (float)($kreditArr[$i] ?? 0),
-                        'id_material'     => $mat_data['id_material'] ?? null,
-                        'nm_material'     => $mat_data['nm_material'] ?? null,
-                        'id_gudang'       => $mat_data['id_gudang'] ?? null,
-                        'no_coil'         => null,
-                        'no_batch'        => $Nomor_JV,
-                        'created_by'      => $this->auth->user_id(),
-                        'created_at'      => date('Y-m-d H:i:s'),
+                    $datadetail = [
+                        'tipe'         => $typeArr[$i] ?? 'JV',
+                        'nomor'        => $Nomor_JV,
+                        'tanggal'      => $tglJArr[$i] ?? $tgl_inv,
+                        'no_perkiraan' => $coaArr[$i] ?? '',
+                        'keterangan'   => $ketArr[$i] ?? $keterangan,
+                        'no_reff'      => $kode_trans,
+                        'debet'        => (float)($debetArr[$i] ?? 0),
+                        'kredit'       => (float)($kreditArr[$i] ?? 0),
+                        'created_by'   => $this->auth->user_id(),
+                        'created_on'   => date('Y-m-d H:i:s'),
                     ];
-                    $this->db->insert('gl_interface_detail', $gl_detail);
-                    if ($this->db->affected_rows() <= 0) {
-                        throw new Exception('Gagal insert gl_interface_detail baris ke-' . ($i + 1));
-                    }
+                    $this->db->insert(DBACC . '.jurnal', $datadetail);
                 }
+
+                $this->db->query("UPDATE " . DBACC . ".pastibisa_tb_cabang SET nomorJC=nomorJC + 1 WHERE nocab='101'");
 
                 // ── Kartu hutang unbill per PO — nomor sudah ada sekarang ──
                 foreach ($data_incoming_memo as $row) {

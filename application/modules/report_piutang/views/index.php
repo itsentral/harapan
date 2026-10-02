@@ -64,6 +64,9 @@
                 <button type="button" id="btn-excel" class="btn btn-success btn-sm" style="display:none;">
                     <i class="fa fa-file-excel-o"></i> Download Excel
                 </button>
+                <button type="button" id="btn-summary" class="btn btn-info btn-sm" style="display:none;">
+                    <i class="fa fa-file-text-o"></i> Download Summary
+                </button>
             </div>
         </div>
 
@@ -164,7 +167,7 @@
                     if (res.data.length === 0) {
                         $('#result-area').hide();
                         $('#no-data-area').show();
-                        $('#btn-print, #btn-excel').hide();
+                        $('#btn-print, #btn-excel, #btn-summary').hide();
                         $('#total_piutang_display').val('');
                         return;
                     }
@@ -173,7 +176,7 @@
                     renderTable(res.data, res.total_piutang);
                     $('#total_piutang_display').val(formatNumber(res.total_piutang));
                     $('#result-area').show();
-                    $('#btn-print, #btn-excel').show().data('tanggal', tgl_server);
+                    $('#btn-print, #btn-excel, #btn-summary').show().data('tanggal', tgl_server);
                 },
                 error: function() {
                     $('#btn-cari').prop('disabled', false).html('<i class="fa fa-search"></i> Tampilkan');
@@ -196,6 +199,12 @@
         $('#btn-excel').on('click', function() {
             var tgl = $(this).data('tanggal');
             window.location.href = base_url + active_controller + '/export_excel/' + tgl;
+        });
+
+        // Tombol Download Summary (1 baris per invoice)
+        $('#btn-summary').on('click', function() {
+            var tgl = $(this).data('tanggal');
+            window.location.href = base_url + active_controller + '/export_summary/' + tgl;
         });
 
         function renderTable(data, total) {

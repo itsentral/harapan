@@ -15,7 +15,8 @@ class Adjustment extends Admin_Controller
 
     $this->load->library(array('upload', 'Image_lib'));
     $this->load->model(array(
-      'Adjustment/adjustment_model'
+      'Adjustment/adjustment_model',
+      'jurnal_nomor/Jurnal_model'
     ));
 
     date_default_timezone_set('Asia/Bangkok');
@@ -237,54 +238,58 @@ class Adjustment extends Admin_Controller
               $kredit_coa = $COA_SELISIH_STOCK;
             }
 
-            // Insert ke gl_interface (staging jurnal)
-            $this->db->insert('gl_interface', [
-              'tgl'              => $tgl_jurnal,
-              'jml'              => $nilai_adjustment,
-              'kdcab'            => '101',
-              'jenis'            => 'JV',
-              'jenis_transaksi'  => 'adjustment',
-              'keterangan'       => $keterangan_j,
-              'bulan'            => date('n'),
-              'tahun'            => date('Y'),
-              'user_id'          => $this->id_user,
-              'status'           => 'pending',
-              'memo'             => json_encode([
-                'kode_trans'      => $kode_trans,
-                'adjustment_type' => $adjustment_type,
-                'id_material'     => $id_material,
-                'nm_material'     => $nm_material,
-                'qty'             => $qty_oke_float,
-                'harga_beli'      => $harga_beli,
-              ]),
-              'created_at'       => $this->datetime,
-            ]);
-            $id_gl_interface = $this->db->insert_id();
+            // Insert jurnal langsung ke buku besar (DBACC.javh + DBACC.jurnal)
+            $Bln      = substr($tgl_jurnal, 5, 2);
+            $Thn      = substr($tgl_jurnal, 0, 4);
+            $Nomor_JV = $this->Jurnal_model->get_Nomor_Jurnal_Sales('101', $tgl_jurnal);
 
-            if ($id_gl_interface) {
+            if (!empty($Nomor_JV)) {
+              // Header jurnal
+              $this->db->insert(DBACC . '.javh', [
+                'nomor'         => $Nomor_JV,
+                'tgl'           => $tgl_jurnal,
+                'jml'           => $nilai_adjustment,
+                'koreksi_no'    => '-',
+                'kdcab'         => '101',
+                'jenis'         => 'JV',
+                'keterangan'    => $keterangan_j,
+                'bulan'         => $Bln,
+                'tahun'         => $Thn,
+                'user_id'       => $this->id_user,
+                'memo'          => '',
+                'tgl_jvkoreksi' => $tgl_jurnal,
+                'ho_valid'      => '',
+              ]);
+
               // Detail Debet
-              $this->db->insert('gl_interface_detail', [
-                'id_gl_interface' => $id_gl_interface,
-                'tipe'            => 'JV',
-                'tanggal'         => $tgl_jurnal,
-                'no_perkiraan'    => $debet_coa,
-                'keterangan'      => $keterangan_j,
-                'no_reff'         => $kode_trans,
-                'debet'           => $nilai_adjustment,
-                'kredit'          => 0,
+              $this->db->insert(DBACC . '.jurnal', [
+                'tipe'         => 'JV',
+                'nomor'        => $Nomor_JV,
+                'tanggal'      => $tgl_jurnal,
+                'no_perkiraan' => $debet_coa,
+                'keterangan'   => $keterangan_j,
+                'no_reff'      => $kode_trans,
+                'debet'        => $nilai_adjustment,
+                'kredit'       => 0,
+                'created_by'   => $this->id_user,
+                'created_on'   => $this->datetime,
               ]);
 
               // Detail Kredit
-              $this->db->insert('gl_interface_detail', [
-                'id_gl_interface' => $id_gl_interface,
-                'tipe'            => 'JV',
-                'tanggal'         => $tgl_jurnal,
-                'no_perkiraan'    => $kredit_coa,
-                'keterangan'      => $keterangan_j,
-                'no_reff'         => $kode_trans,
-                'debet'           => 0,
-                'kredit'          => $nilai_adjustment,
+              $this->db->insert(DBACC . '.jurnal', [
+                'tipe'         => 'JV',
+                'nomor'        => $Nomor_JV,
+                'tanggal'      => $tgl_jurnal,
+                'no_perkiraan' => $kredit_coa,
+                'keterangan'   => $keterangan_j,
+                'no_reff'      => $kode_trans,
+                'debet'        => 0,
+                'kredit'       => $nilai_adjustment,
+                'created_by'   => $this->id_user,
+                'created_on'   => $this->datetime,
               ]);
+
+              $this->db->query("UPDATE " . DBACC . ".pastibisa_tb_cabang SET nomorJC=nomorJC + 1 WHERE nocab='101'");
             }
           }
           // ===== END JURNAL ADJUSTMENT PERSEDIAAN =====
