@@ -375,16 +375,24 @@ class Report_piutang extends Admin_Controller
         foreach ($data_report as $d) {
             if ($d['is_first_row']) {
                 $sheet->setCellValue('A' . $row, $d['name_customer']);
-                $tgl_inv = !empty($d['tgl_invoice']) ? date('d', strtotime($d['tgl_invoice'])) . ' ' . $months_id[(int)date('n', strtotime($d['tgl_invoice']))] . ' ' . date('Y', strtotime($d['tgl_invoice'])) : '';
-                $sheet->setCellValue('B' . $row, $tgl_inv);
-                $sheet->setCellValue('C' . $row, $d['id_invoice']);
+                // Tulis sebagai nilai tanggal Excel asli agar bisa di-sort kronologis
+                if (!empty($d['tgl_invoice'])) {
+                    $excel_tgl_inv = PHPExcel_Shared_Date::PHPToExcel(strtotime($d['tgl_invoice']));
+                    $sheet->setCellValue('B' . $row, $excel_tgl_inv);
+                    $sheet->getStyle('B' . $row)->getNumberFormat()->setFormatCode('dd mmm yyyy');
+                }
+                $sheet->setCellValueExplicit('C' . $row, $d['id_invoice'], PHPExcel_Cell_DataType::TYPE_STRING);
                 $sheet->setCellValue('D' . $row, (float)$d['nilai_invoice']);
                 $sheet->getStyle('D' . $row)->getNumberFormat()->setFormatCode('#,##0');
             }
 
             $sheet->setCellValue('E' . $row, $d['kd_pembayaran']);
-            $tgl_bayar = !empty($d['tgl_bayar']) ? date('d', strtotime($d['tgl_bayar'])) . ' ' . $months_id[(int)date('n', strtotime($d['tgl_bayar']))] . ' ' . date('Y', strtotime($d['tgl_bayar'])) : '';
-            $sheet->setCellValue('F' . $row, $tgl_bayar);
+            // Tanggal bayar sebagai nilai tanggal Excel asli (bisa di-sort)
+            if (!empty($d['tgl_bayar'])) {
+                $excel_tgl_bayar = PHPExcel_Shared_Date::PHPToExcel(strtotime($d['tgl_bayar']));
+                $sheet->setCellValue('F' . $row, $excel_tgl_bayar);
+                $sheet->getStyle('F' . $row)->getNumberFormat()->setFormatCode('dd mmm yyyy');
+            }
             $sheet->setCellValue('G' . $row, $d['nilai_bayar'] !== '' ? (float)$d['nilai_bayar'] : null);
             $sheet->setCellValue('H' . $row, $d['total_bayar'] !== '' ? (float)$d['total_bayar'] : null);
             $sheet->setCellValue('I' . $row, (float)$d['sisa_piutang']);
