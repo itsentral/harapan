@@ -198,11 +198,6 @@ class Report_piutang_model extends BF_Model
 
         $rows = [];
 
-        // Tanggal awal bulan cut-off (mis. cut-off 2026-01-31 -> 2026-01-01).
-        // Dipakai untuk membedakan invoice yang lunas SEBELUM bulan cut-off
-        // (disembunyikan) vs lunas DI DALAM bulan cut-off (tetap ditampilkan).
-        $awal_bulan_cutoff = date('Y-m-01', strtotime($tanggal));
-
         foreach ($all_invoices as $inv) {
             // Hitung total pelunasan untuk invoice ini s/d tanggal.
             // Pelunasan = uang bank riil (total_bayar_idr) + credit note (total_cn_idr)
@@ -229,33 +224,9 @@ class Report_piutang_model extends BF_Model
                 }
             }
 
-            // Jika invoice sudah lunas s/d cut-off, tentukan KAPAN lunasnya.
-            // - Lunas SEBELUM bulan cut-off  -> skip (bukan piutang periode ini).
-            // - Lunas DI DALAM bulan cut-off -> tetap ditampilkan (sisa akhir 0).
+            // Skip invoice yang sudah lunas (pelunasan mencakup bayar + CN + pembulatan)
             if ((float)$inv['nilai_invoice'] <= $total_pelunasan_sd_tgl) {
-                // Hitung pelunasan s/d AKHIR bulan sebelum cut-off
-                // (yaitu pembayaran dengan tgl < awal bulan cut-off).
-                $this->db->select('COALESCE(SUM(d.total_bayar_idr), 0) AS total_bayar');
-                $this->db->select('COALESCE(SUM(d.total_cn_idr), 0) AS total_cn');
-                $this->db->select('COALESCE(SUM(d.pembulatan_idr), 0) AS total_pembulatan');
-                $this->db->from('tr_invoice_payment_detail d');
-                $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = d.kd_pembayaran', 'inner');
-                $this->db->where('d.no_invoice', $inv['id_invoice']);
-                $this->db->where('p.tgl_pembayaran <', $awal_bulan_cutoff);
-                $prev_result = $this->db->get();
-
-                $pelunasan_sblm_bulan = 0;
-                if ($prev_result && ($prev_row = $prev_result->row_array())) {
-                    $pelunasan_sblm_bulan = (float)$prev_row['total_bayar']
-                        + (float)$prev_row['total_cn']
-                        + (float)$prev_row['total_pembulatan'];
-                }
-
-                // Sudah lunas sebelum bulan cut-off -> sembunyikan.
-                if ((float)$inv['nilai_invoice'] <= $pelunasan_sblm_bulan) {
-                    continue;
-                }
-                // Selain itu: lunas di dalam bulan cut-off -> biarkan tampil.
+                continue;
             }
 
             // Ambil semua baris pembayaran untuk invoice ini s/d tanggal
