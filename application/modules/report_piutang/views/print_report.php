@@ -155,12 +155,13 @@
                 <th style="width:10%;">Nilai Bayar</th>
                 <th style="width:10%;">Total Bayar</th>
                 <th style="width:10%;">Sisa Piutang</th>
+                <th style="width:10%;">Saldo Piutang</th>
             </tr>
         </thead>
         <tbody>
         <?php if (empty($data_report)): ?>
             <tr>
-                <td colspan="10" class="text-center">Tidak ada data piutang.</td>
+                <td colspan="11" class="text-center">Tidak ada data piutang.</td>
             </tr>
         <?php else: ?>
             <?php
@@ -192,6 +193,7 @@
                 <td class="text-right"><?= fmt_num($row['nilai_bayar']) ?></td>
                 <td class="text-right"><?= fmt_num($row['total_bayar']) ?></td>
                 <td class="text-right"><?= fmt_num($row['sisa_piutang']) ?></td>
+                <td class="text-right"><?= fmt_num($row['saldo_piutang']) ?></td>
             </tr>
             <?php endforeach; ?>
         <?php endif; ?>
@@ -200,6 +202,7 @@
             <tr>
                 <td colspan="9" class="text-right">Total Piutang</td>
                 <td class="text-right"><?= number_format($total_piutang, 0, ',', '.') ?></td>
+                <td></td>
             </tr>
         </tfoot>
     </table>
