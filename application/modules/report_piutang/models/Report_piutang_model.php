@@ -230,14 +230,14 @@ class Report_piutang_model extends BF_Model
             }
 
             // Ambil semua baris pembayaran untuk invoice ini s/d tanggal
-            $this->db->select('p.kd_pembayaran, p.tgl_pembayaran, d.total_bayar_idr AS nilai_bayar, d.sisa_invoice_idr AS sisa');
+            $this->db->select('p.kd_pembayaran, p.tgl_pembayaran, p.created_on AS tgl_dibuat, d.total_bayar_idr AS nilai_bayar, d.sisa_invoice_idr AS sisa');
             $this->db->from('tr_invoice_payment_detail d');
             $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = d.kd_pembayaran', 'inner');
             $this->db->where('d.no_invoice', $inv['id_invoice']);
             $this->db->where('p.tgl_pembayaran <=', $tanggal);
-            // Urut berdasarkan tanggal, lalu id (auto increment) sebagai tie-breaker
-            // agar urutan pembayaran yang tgl-nya sama tidak terbolak-balik.
-            $this->db->order_by('p.tgl_pembayaran ASC, p.id ASC');
+            // Urut berdasarkan tanggal dibuat (created_on), lalu id (auto increment)
+            // sebagai tie-breaker agar urutan pembayaran yang tgl-nya sama tidak terbolak-balik.
+            $this->db->order_by('p.created_on ASC, p.id ASC');
             $pay_query = $this->db->get();
 
             $payments = $pay_query ? $pay_query->result_array() : [];
@@ -251,6 +251,7 @@ class Report_piutang_model extends BF_Model
                     'nilai_invoice'  => $inv['nilai_invoice'],
                     'kd_pembayaran'  => '',
                     'tgl_bayar'      => '',
+                    'tgl_dibuat'     => '',
                     'nilai_bayar'    => '',
                     'total_bayar'    => '',
                     'sisa_piutang'   => $inv['nilai_invoice'],
@@ -273,6 +274,7 @@ class Report_piutang_model extends BF_Model
                         'nilai_invoice'  => $inv['nilai_invoice'],
                         'kd_pembayaran'  => $pay['kd_pembayaran'],
                         'tgl_bayar'      => $pay['tgl_pembayaran'],
+                        'tgl_dibuat'     => $pay['tgl_dibuat'],
                         'nilai_bayar'    => $pay['nilai_bayar'],
                         'total_bayar'    => $running_total,
                         'sisa_piutang'   => $sisa,
