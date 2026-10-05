@@ -87,6 +87,7 @@
                             <th class="text-center" style="vertical-align:middle;">Nilai Bayar</th>
                             <th class="text-center" style="vertical-align:middle;">Total Bayar</th>
                             <th class="text-center" style="vertical-align:middle;">Sisa Piutang</th>
+                            <th class="text-center" style="vertical-align:middle;">Saldo Piutang</th>
                         </tr>
                     </thead>
                     <tbody id="tbody-piutang">
@@ -95,6 +96,7 @@
                         <tr>
                             <td colspan="9" class="text-right"><strong>Total Piutang</strong></td>
                             <td class="text-right" id="tfoot-total"><strong></strong></td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -229,6 +231,7 @@
                 tbody += '<td class="text-right">' + (row.nilai_bayar !== '' ? formatNumber(row.nilai_bayar) : '') + '</td>';
                 tbody += '<td class="text-right">' + (row.total_bayar !== '' ? formatNumber(row.total_bayar) : '') + '</td>';
                 tbody += '<td class="text-right">' + formatNumber(row.sisa_piutang) + '</td>';
+                tbody += '<td class="text-right">' + (row.saldo_piutang !== '' ? formatNumber(row.saldo_piutang) : '') + '</td>';
                 tbody += '</tr>';
             });
 

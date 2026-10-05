@@ -255,6 +255,7 @@ class Report_piutang_model extends BF_Model
                     'nilai_bayar'    => '',
                     'total_bayar'    => '',
                     'sisa_piutang'   => $inv['nilai_invoice'],
+                    'saldo_piutang'  => $inv['nilai_invoice'],
                     'is_first_row'   => true,
                     'rowspan'        => 1,
                 ];
@@ -262,10 +263,16 @@ class Report_piutang_model extends BF_Model
                 $running_total = 0;
                 $rowspan = count($payments);
 
+                // Saldo piutang berjalan: dimulai dari nilai invoice,
+                // tiap baris pembayaran dikurangi nilai bayar baris tsb.
+                $saldo_piutang = (float)$inv['nilai_invoice'];
+
                 foreach ($payments as $idx => $pay) {
                     $running_total += $pay['nilai_bayar'];
                     // $sisa = $inv['nilai_invoice'] - $running_total;
                     $sisa = $pay['sisa'];
+
+                    $saldo_piutang -= (float)$pay['nilai_bayar'];
 
                     $rows[] = [
                         'name_customer'  => $inv['nm_customer'],
@@ -278,6 +285,7 @@ class Report_piutang_model extends BF_Model
                         'nilai_bayar'    => $pay['nilai_bayar'],
                         'total_bayar'    => $running_total,
                         'sisa_piutang'   => $sisa,
+                        'saldo_piutang'  => $saldo_piutang,
                         'is_first_row'   => ($idx === 0),
                         'rowspan'        => $rowspan,
                     ];

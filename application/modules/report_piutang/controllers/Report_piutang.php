@@ -327,12 +327,12 @@ class Report_piutang extends Admin_Controller
 
         // Title
         $sheet->setCellValue('A1', 'REPORT PIUTANG PER INVOICE');
-        $sheet->mergeCells('A1:J1');
+        $sheet->mergeCells('A1:K1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
         $sheet->setCellValue('A2', 'Per Tanggal: ' . date('d F Y', strtotime($tanggal)));
-        $sheet->mergeCells('A2:J2');
+        $sheet->mergeCells('A2:K2');
         $sheet->getStyle('A2')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
         // Header kolom
@@ -346,9 +346,10 @@ class Report_piutang extends Admin_Controller
             'Tanggal Dibuat',
             'Nilai Bayar',
             'Total Bayar',
-            'Sisa Piutang'
+            'Sisa Piutang',
+            'Saldo Piutang'
         ];
-        $cols    = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+        $cols    = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
 
         foreach ($headers as $i => $h) {
             $sheet->setCellValue($cols[$i] . '4', $h);
@@ -403,12 +404,14 @@ class Report_piutang extends Admin_Controller
             $sheet->setCellValue('H' . $row, $d['nilai_bayar'] !== '' ? (float)$d['nilai_bayar'] : null);
             $sheet->setCellValue('I' . $row, $d['total_bayar'] !== '' ? (float)$d['total_bayar'] : null);
             $sheet->setCellValue('J' . $row, (float)$d['sisa_piutang']);
+            $sheet->setCellValue('K' . $row, isset($d['saldo_piutang']) && $d['saldo_piutang'] !== '' ? (float)$d['saldo_piutang'] : null);
 
             $sheet->getStyle('H' . $row)->getNumberFormat()->setFormatCode('#,##0');
             $sheet->getStyle('I' . $row)->getNumberFormat()->setFormatCode('#,##0');
             $sheet->getStyle('J' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('K' . $row)->getNumberFormat()->setFormatCode('#,##0');
 
-            $sheet->getStyle('A' . $row . ':J' . $row)->applyFromArray($style_data);
+            $sheet->getStyle('A' . $row . ':K' . $row)->applyFromArray($style_data);
             $row++;
         }
 
@@ -417,7 +420,7 @@ class Report_piutang extends Admin_Controller
         $sheet->mergeCells('A' . $row . ':I' . $row);
         $sheet->setCellValue('J' . $row, (float)$total_piutang);
         $sheet->getStyle('J' . $row)->getNumberFormat()->setFormatCode('#,##0');
-        $sheet->getStyle('A' . $row . ':J' . $row)->applyFromArray($style_total);
+        $sheet->getStyle('A' . $row . ':K' . $row)->applyFromArray($style_total);
 
         // Output
         $filename = 'Report_Piutang_' . $tanggal . '.xlsx';
