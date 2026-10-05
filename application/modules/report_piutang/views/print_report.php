@@ -202,7 +202,7 @@
             <tr>
                 <td colspan="9" class="text-right">Total Piutang</td>
                 <td class="text-right"><?= number_format($total_piutang, 0, ',', '.') ?></td>
-                <td></td>
+                <td class="text-right"><?= number_format($total_saldo_piutang, 0, ',', '.') ?></td>
             </tr>
         </tfoot>
     </table>
