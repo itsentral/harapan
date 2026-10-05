@@ -96,7 +96,7 @@
                         <tr>
                             <td colspan="9" class="text-right"><strong>Total Piutang</strong></td>
                             <td class="text-right" id="tfoot-total"><strong></strong></td>
-                            <td></td>
+                            <td class="text-right" id="tfoot-total-saldo"><strong></strong></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -177,7 +177,7 @@
                     }
 
                     $('#no-data-area').hide();
-                    renderTable(res.data, res.total_piutang);
+                    renderTable(res.data, res.total_piutang, res.total_saldo_piutang);
                     $('#total_piutang_display').val(formatNumber(res.total_piutang));
                     $('#result-area').show();
                     $('#btn-print, #btn-excel').show().data('tanggal', tgl_server);
@@ -211,7 +211,7 @@
             window.location.href = base_url + active_controller + '/export_summary/' + tgl;
         });
 
-        function renderTable(data, total) {
+        function renderTable(data, total, totalSaldo) {
             var tbody = '';
             var prevInvoice = null;
 
@@ -237,6 +237,7 @@
 
             $('#tbody-piutang').html(tbody);
             $('#tfoot-total strong').text(formatNumber(total));
+            $('#tfoot-total-saldo strong').text(formatNumber(totalSaldo));
         }
 
         function formatNumber(n) {

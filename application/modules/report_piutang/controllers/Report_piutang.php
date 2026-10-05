@@ -158,9 +158,10 @@ class Report_piutang extends Admin_Controller
         $total_piutang = $result['total_piutang'];
 
         echo json_encode([
-            'status'        => true,
-            'data'          => $data,
-            'total_piutang' => $total_piutang,
+            'status'              => true,
+            'data'                => $data,
+            'total_piutang'       => $total_piutang,
+            'total_saldo_piutang' => $result['total_saldo_piutang'],
         ]);
     }
 
@@ -179,9 +180,10 @@ class Report_piutang extends Admin_Controller
         $total_piutang = $result['total_piutang'];
 
         $data = [
-            'tanggal'       => $tanggal,
-            'data_report'   => $data_report,
-            'total_piutang' => $total_piutang,
+            'tanggal'             => $tanggal,
+            'data_report'         => $data_report,
+            'total_piutang'       => $total_piutang,
+            'total_saldo_piutang' => $result['total_saldo_piutang'],
         ];
 
         $this->load->view('print_report', $data);
@@ -296,9 +298,10 @@ class Report_piutang extends Admin_Controller
             show_error('Tanggal tidak ditemukan.');
         }
 
-        $result        = $this->Report_piutang_model->get_piutang_per_invoice($tanggal);
-        $data_report   = $result['rows'];
-        $total_piutang = $result['total_piutang'];
+        $result              = $this->Report_piutang_model->get_piutang_per_invoice($tanggal);
+        $data_report         = $result['rows'];
+        $total_piutang       = $result['total_piutang'];
+        $total_saldo_piutang = $result['total_saldo_piutang'];
 
         $this->load->library('PHPExcel');
 
@@ -419,7 +422,9 @@ class Report_piutang extends Admin_Controller
         $sheet->setCellValue('A' . $row, 'Total Piutang');
         $sheet->mergeCells('A' . $row . ':I' . $row);
         $sheet->setCellValue('J' . $row, (float)$total_piutang);
+        $sheet->setCellValue('K' . $row, (float)$total_saldo_piutang);
         $sheet->getStyle('J' . $row)->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('K' . $row)->getNumberFormat()->setFormatCode('#,##0');
         $sheet->getStyle('A' . $row . ':K' . $row)->applyFromArray($style_total);
 
         // Output

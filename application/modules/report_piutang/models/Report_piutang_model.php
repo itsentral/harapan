@@ -151,24 +151,30 @@ class Report_piutang_model extends BF_Model
 
         // Hitung total piutang: ambil sisa_piutang dari baris terakhir tiap invoice
         $total_piutang = 0;
+        $total_saldo_piutang = 0;
         $last_invoice = null;
         $last_sisa = 0;
+        $last_saldo = 0;
 
         foreach ($rows as $r) {
             if ($r['is_first_row'] && $last_invoice !== null) {
                 $total_piutang += $last_sisa;
+                $total_saldo_piutang += $last_saldo;
             }
             $last_invoice = $r['id_invoice'];
             $last_sisa = (float)$r['sisa_piutang'];
+            $last_saldo = (float)$r['saldo_piutang'];
         }
         // Tambahkan invoice terakhir
         if ($last_invoice !== null) {
             $total_piutang += $last_sisa;
+            $total_saldo_piutang += $last_saldo;
         }
 
         return [
-            'rows'          => $rows,
-            'total_piutang' => $total_piutang,
+            'rows'                => $rows,
+            'total_piutang'       => $total_piutang,
+            'total_saldo_piutang' => $total_saldo_piutang,
         ];
     }
 
