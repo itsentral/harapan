@@ -236,7 +236,7 @@ class Report_piutang_model extends BF_Model
             }
 
             // Ambil semua baris pembayaran untuk invoice ini s/d tanggal
-            $this->db->select('p.id, p.kd_pembayaran, p.tgl_pembayaran, p.created_on AS tgl_dibuat, d.total_bayar_idr AS nilai_bayar, d.total_cn_idr AS nilai_cn, d.pembulatan_idr AS nilai_pembulatan, d.sisa_invoice_idr AS sisa');
+            $this->db->select('p.kd_pembayaran, p.tgl_pembayaran, p.created_on AS tgl_dibuat, d.total_bayar_idr AS nilai_bayar, d.sisa_invoice_idr AS sisa');
             $this->db->from('tr_invoice_payment_detail d');
             $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = d.kd_pembayaran', 'inner');
             $this->db->where('d.no_invoice', $inv['id_invoice']);
@@ -247,30 +247,6 @@ class Report_piutang_model extends BF_Model
             $pay_query = $this->db->get();
 
             $payments = $pay_query ? $pay_query->result_array() : [];
-
-            // Saldo cut off: ambil sisa invoice dari pembayaran dengan
-            // tgl_pembayaran TERBESAR yang <= tanggal cut off (tie-breaker id
-            // terbesar). Ini independen dari urutan tampilan (sort by created_on),
-            // sehingga saldo tetap mengikuti tanggal pembayaran, bukan urutan baris.
-            $saldo_cutoff = (float)$inv['nilai_invoice'];
-            if (!empty($payments)) {
-                $saldo_pay = null;
-                foreach ($payments as $pp) {
-                    if ($saldo_pay === null) {
-                        $saldo_pay = $pp;
-                        continue;
-                    }
-                    $cur_ts  = strtotime($pp['tgl_pembayaran']);
-                    $best_ts = strtotime($saldo_pay['tgl_pembayaran']);
-                    if ($cur_ts > $best_ts
-                        || ($cur_ts === $best_ts && (int)$pp['id'] > (int)$saldo_pay['id'])) {
-                        $saldo_pay = $pp;
-                    }
-                }
-                if ($saldo_pay !== null) {
-                    $saldo_cutoff = (float)$saldo_pay['sisa'];
-                }
-            }
 
             if (empty($payments)) {
                 // Invoice belum ada pembayaran sama sekali
@@ -293,15 +269,44 @@ class Report_piutang_model extends BF_Model
                 $running_total = 0;
                 $rowspan = count($payments);
 
+                // Tanggal data begining aplikasi: 31 Des 2025.
+                // - Baris pembayaran s/d 31 Des 2025  : saldo = sisa_invoice_idr.
+                // - Baris pembayaran setelah 31 Des   : saldo dihitung running,
+                //   dimulai dari saldo akhir per 31 Des (sisa pembayaran dengan
+                //   tgl_pembayaran TERBESAR yang <= 31 Des), lalu dikurangi bayar.
+                $begining_date = '2025-12-31';
+                $begining_ts   = strtotime($begining_date . ' 23:59:59');
+
+                // Tentukan saldo awal = sisa pembayaran terakhir (tgl terbesar)
+                // yang masih <= 31 Des 2025. Independen dari urutan tampilan.
+                // Jika tidak ada pembayaran s/d 31 Des, mulai dari nilai invoice.
+                $saldo_running   = (float)$inv['nilai_invoice'];
+                $last_begin_ts   = null;
+                foreach ($payments as $pp) {
+                    $pp_ts = strtotime($pp['tgl_pembayaran']);
+                    if ($pp_ts <= $begining_ts) {
+                        if ($last_begin_ts === null || $pp_ts >= $last_begin_ts) {
+                            $last_begin_ts = $pp_ts;
+                            $saldo_running = (float)$pp['sisa'];
+                        }
+                    }
+                }
+
                 foreach ($payments as $idx => $pay) {
                     $running_total += $pay['nilai_bayar'];
                     // $sisa = $inv['nilai_invoice'] - $running_total;
                     $sisa = $pay['sisa'];
 
-                    // Saldo piutang = saldo cut off invoice ini, yaitu sisa
-                    // invoice pada pembayaran dengan tgl_pembayaran terbesar
-                    // (<= tanggal cut off). Nilai sama di semua baris invoice.
-                    $saldo_piutang = $saldo_cutoff;
+                    $pay_ts = strtotime($pay['tgl_pembayaran']);
+
+                    if ($pay_ts <= $begining_ts) {
+                        // Sampai 31 Des 2025: ikut sisa invoice riil.
+                        $saldo_piutang = (float)$pay['sisa'];
+                    } else {
+                        // Setelah 31 Des 2025: running dari saldo akhir Des.
+                        $saldo_running -= (float)$pay['nilai_bayar'];
+                        $saldo_piutang = $saldo_running;
+                    }
 
                     $rows[] = [
                         'name_customer'  => $inv['nm_customer'],
