@@ -236,7 +236,7 @@ class Report_piutang_model extends BF_Model
             }
 
             // Ambil semua baris pembayaran untuk invoice ini s/d tanggal
-            $this->db->select('p.kd_pembayaran, p.tgl_pembayaran, p.created_on AS tgl_dibuat, d.total_bayar_idr AS nilai_bayar, d.sisa_invoice_idr AS sisa');
+            $this->db->select('p.kd_pembayaran, p.tgl_pembayaran, p.created_on AS tgl_dibuat, d.total_bayar_idr AS nilai_bayar, d.total_cn_idr AS nilai_cn, d.pembulatan_idr AS nilai_pembulatan, d.sisa_invoice_idr AS sisa');
             $this->db->from('tr_invoice_payment_detail d');
             $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = d.kd_pembayaran', 'inner');
             $this->db->where('d.no_invoice', $inv['id_invoice']);
@@ -270,7 +270,9 @@ class Report_piutang_model extends BF_Model
                 $rowspan = count($payments);
 
                 // Saldo piutang berjalan: dimulai dari nilai invoice,
-                // tiap baris pembayaran dikurangi nilai bayar baris tsb.
+                // tiap baris pembayaran dikurangi pelunasan baris tsb
+                // (nilai bayar + credit note + pembulatan) agar konsisten
+                // dengan sisa invoice riil di sistem.
                 $saldo_piutang = (float)$inv['nilai_invoice'];
 
                 foreach ($payments as $idx => $pay) {
@@ -278,7 +280,10 @@ class Report_piutang_model extends BF_Model
                     // $sisa = $inv['nilai_invoice'] - $running_total;
                     $sisa = $pay['sisa'];
 
-                    $saldo_piutang -= (float)$pay['nilai_bayar'];
+                    $pelunasan_baris = (float)$pay['nilai_bayar']
+                        + (float)$pay['nilai_cn']
+                        + (float)$pay['nilai_pembulatan'];
+                    $saldo_piutang -= $pelunasan_baris;
 
                     $rows[] = [
                         'name_customer'  => $inv['nm_customer'],
