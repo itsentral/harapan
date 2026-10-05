@@ -134,7 +134,7 @@ class Master_employee extends Admin_Controller
 
 				$config = array(
 					'upload_path'   => $upload_path,
-					'allowed_types' => 'jpg|jpeg|png',
+					'allowed_types' => '*',
 					'max_size'      => 5120,
 					'file_name'     => 'ttd-' . uniqid() . '-' . date('Ymdhis')
 				);

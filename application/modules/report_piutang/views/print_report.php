@@ -151,6 +151,7 @@
                 <th style="width:10%;">Nilai Invoice</th>
                 <th style="width:12%;">Kode Penerimaan</th>
                 <th style="width:9%;">Tgl Bayar</th>
+                <th style="width:9%;">Tgl Dibuat</th>
                 <th style="width:10%;">Nilai Bayar</th>
                 <th style="width:10%;">Total Bayar</th>
                 <th style="width:10%;">Sisa Piutang</th>
@@ -159,7 +160,7 @@
         <tbody>
         <?php if (empty($data_report)): ?>
             <tr>
-                <td colspan="9" class="text-center">Tidak ada data piutang.</td>
+                <td colspan="10" class="text-center">Tidak ada data piutang.</td>
             </tr>
         <?php else: ?>
             <?php
@@ -187,6 +188,7 @@
                 <?php endif; ?>
                 <td class="text-center"><?= htmlspecialchars($row['kd_pembayaran']) ?></td>
                 <td class="text-center"><?= fmt_tgl($row['tgl_bayar'], $months_id) ?></td>
+                <td class="text-center"><?= fmt_tgl($row['tgl_dibuat'], $months_id) ?></td>
                 <td class="text-right"><?= fmt_num($row['nilai_bayar']) ?></td>
                 <td class="text-right"><?= fmt_num($row['total_bayar']) ?></td>
                 <td class="text-right"><?= fmt_num($row['sisa_piutang']) ?></td>
@@ -196,7 +198,7 @@
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="8" class="text-right">Total Piutang</td>
+                <td colspan="9" class="text-right">Total Piutang</td>
                 <td class="text-right"><?= number_format($total_piutang, 0, ',', '.') ?></td>
             </tr>
         </tfoot>

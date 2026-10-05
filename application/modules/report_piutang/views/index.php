@@ -83,6 +83,7 @@
                             <th class="text-center" style="vertical-align:middle;">Nilai Invoice</th>
                             <th class="text-center" style="vertical-align:middle;">Kode Penerimaan</th>
                             <th class="text-center" style="vertical-align:middle;">Tanggal Bayar</th>
+                            <th class="text-center" style="vertical-align:middle;">Tanggal Dibuat</th>
                             <th class="text-center" style="vertical-align:middle;">Nilai Bayar</th>
                             <th class="text-center" style="vertical-align:middle;">Total Bayar</th>
                             <th class="text-center" style="vertical-align:middle;">Sisa Piutang</th>
@@ -92,7 +93,7 @@
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td colspan="8" class="text-right"><strong>Total Piutang</strong></td>
+                            <td colspan="9" class="text-right"><strong>Total Piutang</strong></td>
                             <td class="text-right" id="tfoot-total"><strong></strong></td>
                         </tr>
                     </tfoot>
@@ -224,6 +225,7 @@
 
                 tbody += '<td class="text-center">' + (row.kd_pembayaran ? escHtml(row.kd_pembayaran) : '') + '</td>';
                 tbody += '<td class="text-center">' + (row.tgl_bayar ? formatDate(row.tgl_bayar) : '') + '</td>';
+                tbody += '<td class="text-center">' + (row.tgl_dibuat ? formatDate(row.tgl_dibuat) : '') + '</td>';
                 tbody += '<td class="text-right">' + (row.nilai_bayar !== '' ? formatNumber(row.nilai_bayar) : '') + '</td>';
                 tbody += '<td class="text-right">' + (row.total_bayar !== '' ? formatNumber(row.total_bayar) : '') + '</td>';
                 tbody += '<td class="text-right">' + formatNumber(row.sisa_piutang) + '</td>';
