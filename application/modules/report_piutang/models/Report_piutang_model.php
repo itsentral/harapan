@@ -236,7 +236,7 @@ class Report_piutang_model extends BF_Model
             }
 
             // Ambil semua baris pembayaran untuk invoice ini s/d tanggal
-            $this->db->select('p.kd_pembayaran, p.tgl_pembayaran, p.created_on AS tgl_dibuat, d.total_bayar_idr AS nilai_bayar, d.total_cn_idr AS nilai_cn, d.pembulatan_idr AS nilai_pembulatan, d.sisa_invoice_idr AS sisa');
+            $this->db->select('p.id, p.kd_pembayaran, p.tgl_pembayaran, p.created_on AS tgl_dibuat, d.total_bayar_idr AS nilai_bayar, d.total_cn_idr AS nilai_cn, d.pembulatan_idr AS nilai_pembulatan, d.sisa_invoice_idr AS sisa');
             $this->db->from('tr_invoice_payment_detail d');
             $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = d.kd_pembayaran', 'inner');
             $this->db->where('d.no_invoice', $inv['id_invoice']);
@@ -247,6 +247,30 @@ class Report_piutang_model extends BF_Model
             $pay_query = $this->db->get();
 
             $payments = $pay_query ? $pay_query->result_array() : [];
+
+            // Saldo cut off: ambil sisa invoice dari pembayaran dengan
+            // tgl_pembayaran TERBESAR yang <= tanggal cut off (tie-breaker id
+            // terbesar). Ini independen dari urutan tampilan (sort by created_on),
+            // sehingga saldo tetap mengikuti tanggal pembayaran, bukan urutan baris.
+            $saldo_cutoff = (float)$inv['nilai_invoice'];
+            if (!empty($payments)) {
+                $saldo_pay = null;
+                foreach ($payments as $pp) {
+                    if ($saldo_pay === null) {
+                        $saldo_pay = $pp;
+                        continue;
+                    }
+                    $cur_ts  = strtotime($pp['tgl_pembayaran']);
+                    $best_ts = strtotime($saldo_pay['tgl_pembayaran']);
+                    if ($cur_ts > $best_ts
+                        || ($cur_ts === $best_ts && (int)$pp['id'] > (int)$saldo_pay['id'])) {
+                        $saldo_pay = $pp;
+                    }
+                }
+                if ($saldo_pay !== null) {
+                    $saldo_cutoff = (float)$saldo_pay['sisa'];
+                }
+            }
 
             if (empty($payments)) {
                 // Invoice belum ada pembayaran sama sekali
@@ -269,21 +293,15 @@ class Report_piutang_model extends BF_Model
                 $running_total = 0;
                 $rowspan = count($payments);
 
-                // Saldo piutang berjalan: dimulai dari nilai invoice,
-                // tiap baris pembayaran dikurangi pelunasan baris tsb
-                // (nilai bayar + credit note + pembulatan) agar konsisten
-                // dengan sisa invoice riil di sistem.
-                $saldo_piutang = (float)$inv['nilai_invoice'];
-
                 foreach ($payments as $idx => $pay) {
                     $running_total += $pay['nilai_bayar'];
                     // $sisa = $inv['nilai_invoice'] - $running_total;
                     $sisa = $pay['sisa'];
 
-                    $pelunasan_baris = (float)$pay['nilai_bayar']
-                        + (float)$pay['nilai_cn']
-                        + (float)$pay['nilai_pembulatan'];
-                    $saldo_piutang -= $pelunasan_baris;
+                    // Saldo piutang = saldo cut off invoice ini, yaitu sisa
+                    // invoice pada pembayaran dengan tgl_pembayaran terbesar
+                    // (<= tanggal cut off). Nilai sama di semua baris invoice.
+                    $saldo_piutang = $saldo_cutoff;
 
                     $rows[] = [
                         'name_customer'  => $inv['nm_customer'],
