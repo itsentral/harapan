@@ -21,6 +21,126 @@ class Report_piutang extends Admin_Controller
     }
 
     /**
+     * Halaman rekap piutang PER CUSTOMER (untuk dibandingkan dengan Kartu Piutang).
+     */
+    public function per_customer()
+    {
+        $this->auth->restrict($this->viewPermission);
+        $this->template->title('Report Piutang Per Customer');
+        $this->template->render('per_customer');
+    }
+
+    /**
+     * AJAX: ambil rekap piutang per customer s/d tanggal.
+     * POST: tanggal (Y-m-d)
+     */
+    public function get_data_customer()
+    {
+        $tanggal = $this->input->post('tanggal');
+
+        if (empty($tanggal)) {
+            echo json_encode(['status' => false, 'message' => 'Tanggal tidak boleh kosong.']);
+            return;
+        }
+
+        $result = $this->Report_piutang_model->get_piutang_per_customer($tanggal);
+
+        echo json_encode([
+            'status'        => true,
+            'data'          => $result['rows'],
+            'total_piutang' => $result['total_piutang'],
+        ]);
+    }
+
+    /**
+     * Export Excel rekap piutang per customer.
+     * GET: tanggal via URI segment (format Y-m-d)
+     */
+    public function export_excel_customer($tanggal = null)
+    {
+        if (empty($tanggal)) {
+            show_error('Tanggal tidak ditemukan.');
+        }
+
+        $result        = $this->Report_piutang_model->get_piutang_per_customer($tanggal);
+        $data_report   = $result['rows'];
+        $total_piutang = $result['total_piutang'];
+
+        $this->load->library('PHPExcel');
+
+        $objPHPExcel = new PHPExcel();
+        $sheet       = $objPHPExcel->getActiveSheet();
+        $sheet->setTitle('Piutang Per Customer');
+
+        $style_header = [
+            'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill'      => ['type' => PHPExcel_Style_Fill::FILL_SOLID, 'color' => ['rgb' => '1A5276']],
+            'alignment' => [
+                'horizontal' => PHPExcel_Style_Alignment::HORIZONTAL_CENTER,
+                'vertical'   => PHPExcel_Style_Alignment::VERTICAL_CENTER
+            ],
+            'borders'   => ['allborders' => ['style' => PHPExcel_Style_Border::BORDER_THIN]],
+        ];
+        $style_data = [
+            'borders' => ['allborders' => ['style' => PHPExcel_Style_Border::BORDER_THIN]],
+        ];
+        $style_total = [
+            'font'      => ['bold' => true],
+            'fill'      => ['type' => PHPExcel_Style_Fill::FILL_SOLID, 'color' => ['rgb' => 'EAF2FB']],
+            'borders'   => ['allborders' => ['style' => PHPExcel_Style_Border::BORDER_THIN]],
+            'alignment' => ['horizontal' => PHPExcel_Style_Alignment::HORIZONTAL_RIGHT],
+        ];
+
+        $sheet->setCellValue('A1', 'REPORT PIUTANG PER CUSTOMER');
+        $sheet->mergeCells('A1:E1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+
+        $sheet->setCellValue('A2', 'Per Tanggal: ' . date('d F Y', strtotime($tanggal)));
+        $sheet->mergeCells('A2:E2');
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+
+        $headers = ['No', 'Customer', 'Total Invoice', 'Total Bayar', 'Sisa Piutang'];
+        $cols    = ['A', 'B', 'C', 'D', 'E'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue($cols[$i] . '4', $h);
+            $sheet->getStyle($cols[$i] . '4')->applyFromArray($style_header);
+            $sheet->getColumnDimension($cols[$i])->setAutoSize(true);
+        }
+
+        $row = 5;
+        $no  = 1;
+        foreach ($data_report as $d) {
+            $sheet->setCellValue('A' . $row, $no++);
+            $sheet->setCellValue('B' . $row, $d['name_customer']);
+            $sheet->setCellValue('C' . $row, (float)$d['total_invoice']);
+            $sheet->setCellValue('D' . $row, (float)$d['total_bayar']);
+            $sheet->setCellValue('E' . $row, (float)$d['sisa_piutang']);
+
+            $sheet->getStyle('C' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('D' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('E' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('A' . $row . ':E' . $row)->applyFromArray($style_data);
+            $row++;
+        }
+
+        $sheet->setCellValue('A' . $row, 'Total Piutang');
+        $sheet->mergeCells('A' . $row . ':D' . $row);
+        $sheet->setCellValue('E' . $row, (float)$total_piutang);
+        $sheet->getStyle('E' . $row)->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('A' . $row . ':E' . $row)->applyFromArray($style_total);
+
+        $filename = 'Report_Piutang_Per_Customer_' . $tanggal . '.xlsx';
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
+        $writer->save('php://output');
+        exit;
+    }
+
+    /**
      * AJAX: ambil data piutang per invoice s/d tanggal yang dipilih
      * POST: tanggal (Y-m-d)
      */
@@ -65,6 +185,105 @@ class Report_piutang extends Admin_Controller
         ];
 
         $this->load->view('print_report', $data);
+    }
+
+    /**
+     * Export Excel SUMMARY report piutang (1 baris per invoice).
+     * Kolom: Customer, Tanggal Invoice, No Invoice, Nilai Invoice,
+     *        Total Bayar, Sisa Piutang.
+     * GET: tanggal via URI segment (format Y-m-d)
+     */
+    public function export_summary($tanggal = null)
+    {
+        if (empty($tanggal)) {
+            show_error('Tanggal tidak ditemukan.');
+        }
+
+        $result        = $this->Report_piutang_model->get_piutang_per_invoice_summary($tanggal);
+        $data_report   = $result['rows'];
+        $total_piutang = $result['total_piutang'];
+
+        $this->load->library('PHPExcel');
+
+        $objPHPExcel = new PHPExcel();
+        $sheet       = $objPHPExcel->getActiveSheet();
+        $sheet->setTitle('Summary Piutang');
+
+        $style_header = [
+            'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill'      => ['type' => PHPExcel_Style_Fill::FILL_SOLID, 'color' => ['rgb' => '1A5276']],
+            'alignment' => [
+                'horizontal' => PHPExcel_Style_Alignment::HORIZONTAL_CENTER,
+                'vertical'   => PHPExcel_Style_Alignment::VERTICAL_CENTER
+            ],
+            'borders'   => ['allborders' => ['style' => PHPExcel_Style_Border::BORDER_THIN]],
+        ];
+        $style_data = [
+            'borders' => ['allborders' => ['style' => PHPExcel_Style_Border::BORDER_THIN]],
+        ];
+        $style_total = [
+            'font'      => ['bold' => true],
+            'fill'      => ['type' => PHPExcel_Style_Fill::FILL_SOLID, 'color' => ['rgb' => 'EAF2FB']],
+            'borders'   => ['allborders' => ['style' => PHPExcel_Style_Border::BORDER_THIN]],
+            'alignment' => ['horizontal' => PHPExcel_Style_Alignment::HORIZONTAL_RIGHT],
+        ];
+
+        $sheet->setCellValue('A1', 'SUMMARY PIUTANG PER INVOICE');
+        $sheet->mergeCells('A1:F1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+
+        $sheet->setCellValue('A2', 'Per Tanggal: ' . date('d F Y', strtotime($tanggal)));
+        $sheet->mergeCells('A2:F2');
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
+
+        $headers = ['Customer', 'Tanggal Invoice', 'No Invoice', 'Nilai Invoice', 'Total Bayar', 'Sisa Piutang'];
+        $cols    = ['A', 'B', 'C', 'D', 'E', 'F'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue($cols[$i] . '4', $h);
+            $sheet->getStyle($cols[$i] . '4')->applyFromArray($style_header);
+            $sheet->getColumnDimension($cols[$i])->setAutoSize(true);
+        }
+
+        $months_id = [
+            1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',
+            7 => 'Jul', 8 => 'Agu', 9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Des'
+        ];
+
+        $row = 5;
+        foreach ($data_report as $d) {
+            $tgl_inv = !empty($d['tgl_invoice'])
+                ? date('d', strtotime($d['tgl_invoice'])) . ' ' . $months_id[(int)date('n', strtotime($d['tgl_invoice']))] . ' ' . date('Y', strtotime($d['tgl_invoice']))
+                : '';
+
+            $sheet->setCellValue('A' . $row, $d['name_customer']);
+            $sheet->setCellValue('B' . $row, $tgl_inv);
+            $sheet->setCellValueExplicit('C' . $row, $d['id_invoice'], PHPExcel_Cell_DataType::TYPE_STRING);
+            $sheet->setCellValue('D' . $row, (float)$d['nilai_invoice']);
+            $sheet->setCellValue('E' . $row, (float)$d['total_bayar']);
+            $sheet->setCellValue('F' . $row, (float)$d['sisa_piutang']);
+
+            $sheet->getStyle('D' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('E' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('F' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle('A' . $row . ':F' . $row)->applyFromArray($style_data);
+            $row++;
+        }
+
+        $sheet->setCellValue('A' . $row, 'Total Piutang');
+        $sheet->mergeCells('A' . $row . ':E' . $row);
+        $sheet->setCellValue('F' . $row, (float)$total_piutang);
+        $sheet->getStyle('F' . $row)->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('A' . $row . ':F' . $row)->applyFromArray($style_total);
+
+        $filename = 'Summary_Piutang_' . $tanggal . '.xlsx';
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
+        $writer->save('php://output');
+        exit;
     }
 
     /**
@@ -156,16 +375,24 @@ class Report_piutang extends Admin_Controller
         foreach ($data_report as $d) {
             if ($d['is_first_row']) {
                 $sheet->setCellValue('A' . $row, $d['name_customer']);
-                $tgl_inv = !empty($d['tgl_invoice']) ? date('d', strtotime($d['tgl_invoice'])) . ' ' . $months_id[(int)date('n', strtotime($d['tgl_invoice']))] . ' ' . date('Y', strtotime($d['tgl_invoice'])) : '';
-                $sheet->setCellValue('B' . $row, $tgl_inv);
-                $sheet->setCellValue('C' . $row, $d['id_invoice']);
+                // Tulis sebagai nilai tanggal Excel asli agar bisa di-sort kronologis
+                if (!empty($d['tgl_invoice'])) {
+                    $excel_tgl_inv = PHPExcel_Shared_Date::PHPToExcel(strtotime($d['tgl_invoice']));
+                    $sheet->setCellValue('B' . $row, $excel_tgl_inv);
+                    $sheet->getStyle('B' . $row)->getNumberFormat()->setFormatCode('dd mmm yyyy');
+                }
+                $sheet->setCellValueExplicit('C' . $row, $d['id_invoice'], PHPExcel_Cell_DataType::TYPE_STRING);
                 $sheet->setCellValue('D' . $row, (float)$d['nilai_invoice']);
                 $sheet->getStyle('D' . $row)->getNumberFormat()->setFormatCode('#,##0');
             }
 
             $sheet->setCellValue('E' . $row, $d['kd_pembayaran']);
-            $tgl_bayar = !empty($d['tgl_bayar']) ? date('d', strtotime($d['tgl_bayar'])) . ' ' . $months_id[(int)date('n', strtotime($d['tgl_bayar']))] . ' ' . date('Y', strtotime($d['tgl_bayar'])) : '';
-            $sheet->setCellValue('F' . $row, $tgl_bayar);
+            // Tanggal bayar sebagai nilai tanggal Excel asli (bisa di-sort)
+            if (!empty($d['tgl_bayar'])) {
+                $excel_tgl_bayar = PHPExcel_Shared_Date::PHPToExcel(strtotime($d['tgl_bayar']));
+                $sheet->setCellValue('F' . $row, $excel_tgl_bayar);
+                $sheet->getStyle('F' . $row)->getNumberFormat()->setFormatCode('dd mmm yyyy');
+            }
             $sheet->setCellValue('G' . $row, $d['nilai_bayar'] !== '' ? (float)$d['nilai_bayar'] : null);
             $sheet->setCellValue('H' . $row, $d['total_bayar'] !== '' ? (float)$d['total_bayar'] : null);
             $sheet->setCellValue('I' . $row, (float)$d['sisa_piutang']);
