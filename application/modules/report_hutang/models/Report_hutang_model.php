@@ -93,10 +93,23 @@ class Report_hutang_model extends BF_Model
                 $total_bayar_sd_tgl = $bayar_row ? (float)$bayar_row['total_bayar'] : 0;
             }
 
-            // Skip invoice yang sudah lunas (sisa hutang = 0)
+            // Skip invoice yang sudah lunas, KECUALI ada pembayaran di bulan yang dipilih
             $sisa_akhir = (float)$inv['total_invoice'] - $total_bayar_sd_tgl;
             if ($sisa_akhir <= 0) {
-                continue;
+                $bulan_dipilih = date('Y-m', strtotime($tanggal));
+                $this->db->select('COUNT(*) AS cnt');
+                $this->db->from('payment_approve pa');
+                $this->db->join('tr_payment_paid pp', 'pp.id = pa.id_payment', 'inner');
+                $this->db->where('pa.no_doc', $inv['id']);
+                $this->db->where('pa.id_payment IS NOT NULL');
+                $this->db->where('pa.id_payment <>', '');
+                $this->db->where('DATE_FORMAT(pp.tgl_bayar, "%Y-%m") =', $bulan_dipilih);
+                $cek = $this->db->get();
+                $cnt = ($cek && $cek->row_array()) ? (int)$cek->row_array()['cnt'] : 0;
+
+                if ($cnt === 0) {
+                    continue;
+                }
             }
 
             // 3. Ambil detail pembayaran
