@@ -93,6 +93,12 @@ class Report_hutang_model extends BF_Model
                 $total_bayar_sd_tgl = $bayar_row ? (float)$bayar_row['total_bayar'] : 0;
             }
 
+            // Skip invoice yang sudah lunas (sisa hutang = 0)
+            $sisa_akhir = (float)$inv['total_invoice'] - $total_bayar_sd_tgl;
+            if ($sisa_akhir <= 0) {
+                continue;
+            }
+
             // 3. Ambil detail pembayaran
             //    kode bayar   = payment_approve.id_payment
             //    tgl bayar    = tr_payment_paid.tgl_bayar
