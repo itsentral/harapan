@@ -248,8 +248,18 @@ class Report_piutang extends Admin_Controller
         }
 
         $months_id = [
-            1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',
-            7 => 'Jul', 8 => 'Agu', 9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Des'
+            1 => 'Jan',
+            2 => 'Feb',
+            3 => 'Mar',
+            4 => 'Apr',
+            5 => 'Mei',
+            6 => 'Jun',
+            7 => 'Jul',
+            8 => 'Agu',
+            9 => 'Sep',
+            10 => 'Okt',
+            11 => 'Nov',
+            12 => 'Des'
         ];
 
         $row = 5;
@@ -382,7 +392,7 @@ class Report_piutang extends Admin_Controller
                 $sheet->setCellValue('A' . $row, $d['name_customer']);
                 // Tulis sebagai nilai tanggal Excel asli agar bisa di-sort kronologis
                 if (!empty($d['tgl_invoice'])) {
-                    $excel_tgl_inv = PHPExcel_Shared_Date::PHPToExcel(strtotime($d['tgl_invoice']));
+                    $excel_tgl_inv = $this->_to_excel_date($d['tgl_invoice']);
                     $sheet->setCellValue('B' . $row, $excel_tgl_inv);
                     $sheet->getStyle('B' . $row)->getNumberFormat()->setFormatCode('dd mmm yyyy');
                 }
@@ -394,13 +404,13 @@ class Report_piutang extends Admin_Controller
             $sheet->setCellValue('E' . $row, $d['kd_pembayaran']);
             // Tanggal bayar sebagai nilai tanggal Excel asli (bisa di-sort)
             if (!empty($d['tgl_bayar'])) {
-                $excel_tgl_bayar = PHPExcel_Shared_Date::PHPToExcel(strtotime($d['tgl_bayar']));
+                $excel_tgl_bayar = $this->_to_excel_date($d['tgl_bayar']);
                 $sheet->setCellValue('F' . $row, $excel_tgl_bayar);
                 $sheet->getStyle('F' . $row)->getNumberFormat()->setFormatCode('dd mmm yyyy');
             }
             // Tanggal dibuat (created_on) sebagai nilai tanggal Excel asli (bisa di-sort)
             if (!empty($d['tgl_dibuat'])) {
-                $excel_tgl_dibuat = PHPExcel_Shared_Date::PHPToExcel(strtotime($d['tgl_dibuat']));
+                $excel_tgl_dibuat = $this->_to_excel_date($d['tgl_dibuat']);
                 $sheet->setCellValue('G' . $row, $excel_tgl_dibuat);
                 $sheet->getStyle('G' . $row)->getNumberFormat()->setFormatCode('dd mmm yyyy');
             }
@@ -436,5 +446,33 @@ class Report_piutang extends Admin_Controller
         $writer = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
         $writer->save('php://output');
         exit;
+    }
+
+    /**
+     * Konversi string tanggal DB (Y-m-d atau Y-m-d H:i:s) menjadi serial
+     * tanggal Excel TANPA pergeseran timezone.
+     *
+     * Catatan: PHPExcel_Shared_Date::PHPToExcel() bila diberi timestamp
+     * numerik akan memaksa timezone UTC saat memecah komponen tanggal,
+     * sehingga tanggal bernilai jam 00:00:00 WIB bergeser mundur 1 hari.
+     * Dengan melewatkan objek DateTime (yang komponennya diformat apa adanya),
+     * tanggal tampil persis seperti di database / tampilan web.
+     *
+     * @param  string $dateStr
+     * @return float|null Serial tanggal Excel, atau null jika kosong/invalid.
+     */
+    private function _to_excel_date($dateStr)
+    {
+        if (empty($dateStr)) {
+            return null;
+        }
+
+        try {
+            $dt = new DateTime($dateStr);
+        } catch (Exception $e) {
+            return null;
+        }
+
+        return PHPExcel_Shared_Date::PHPToExcel($dt);
     }
 }
