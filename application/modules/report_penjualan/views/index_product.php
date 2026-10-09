@@ -28,6 +28,7 @@
                         <th>Satuan</th>
                         <th>Kuantitas</th>
                         <th>Penjualan</th>
+                        <th>Revenue (exclude PPn)</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -36,6 +37,7 @@
                         <th colspan="3" class="text-center">Total Nama Barang</th>
                         <th class="text-right" id="footQty">0</th>
                         <th class="text-right" id="footSales">0</th>
+                        <th class="text-right" id="footSalesDpp">0</th>
                     </tr>
                 </tfoot>
             </table>
@@ -114,9 +116,11 @@
                     if (json && json.grandTotal) {
                         $('#footQty').text(json.grandTotal.qty_total);
                         $('#footSales').text(json.grandTotal.penjualan_total);
+                        $('#footSalesDpp').text(json.grandTotal.penjualan_total_dpp);
                     } else {
                         $('#footQty').text('0');
                         $('#footSales').text('0');
+                        $('#footSalesDpp').text('0');
                     }
                     return json.data;
                 },

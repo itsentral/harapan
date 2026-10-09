@@ -64,6 +64,7 @@ class Report_penjualan_model extends BF_Model
             $nestedData[] = "<div class='text-center'>" . (($row['created_on'] != null) ? date('d/M/Y', strtotime($row['created_on'])) : '') . "</div>";
             $nestedData[] = "<div>" . strtoupper($row['nm_customer']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['total']) . "</div>";
+            $nestedData[] = "<div class='text-right'>" . number_format($row['total_dpp']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['total_bayar']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['piutang']) . "</div>";
             $nestedData[] = "<div class='text-center'>" . number_format($row['umur']) . "</div>";
@@ -88,15 +89,16 @@ class Report_penjualan_model extends BF_Model
     {
         // Mapping sesuai index kolom tabel di view:
         // 0=No, 1=Nomor Invoice, 2=Tanggal, 3=Customer, 4=Total Invoice,
-        // 5=Total Bayar, 6=Piutang, 7=Umur, 8=Status
+        // 5=Revenue (exclude PPn), 6=Total Bayar, 7=Piutang, 8=Umur, 9=Status
         $columns_order_by = [
             1 => 'i.id_invoice',
             2 => 'i.created_on',
             3 => 'i.nm_customer',
             4 => 'total',
-            5 => 'i.total_bayar',
-            6 => 'i.piutang',
-            7 => 'umur',
+            5 => 'total_dpp',
+            6 => 'i.total_bayar',
+            7 => 'i.piutang',
+            8 => 'umur',
         ];
 
         // Helper filter (Tanggal & Sales)
@@ -114,7 +116,10 @@ class Report_penjualan_model extends BF_Model
             }
         };
 
-        $select = 'i.id_invoice, i.created_on, i.grand_total as total, i.total_bayar, i.piutang, i.jatuh_tempo, i.id_customer, i.nm_customer, i.sts, i.is_cancel,
+        // total        = Total Invoice INCLUDE PPN (nilai riil tagihan ke customer).
+        // total_dpp    = Total Invoice EXCLUDE PPN (DPP), ROUND(grand_total / 1.11),
+        //                disamakan dengan Pendapatan Penjualan 4101-01-01.
+        $select = 'i.id_invoice, i.created_on, i.grand_total as total, ROUND(i.grand_total / 1.11) as total_dpp, i.total_bayar, i.piutang, i.jatuh_tempo, i.id_customer, i.nm_customer, i.sts, i.is_cancel,
                DATEDIFF(i.jatuh_tempo, DATE(i.created_on)) AS umur';
 
         // 1) totalData (opsional: mau dihitung setelah filter tanggal atau tidak)
@@ -173,6 +178,7 @@ class Report_penjualan_model extends BF_Model
         i.id_invoice,
         i.created_on,
         i.grand_total as total,
+        ROUND(i.grand_total / 1.11) as total_dpp,
         i.total_bayar,
         i.piutang,
         i.jatuh_tempo,
@@ -248,6 +254,7 @@ class Report_penjualan_model extends BF_Model
             $nestedData[] = "<div class='text-center'>{$urut}</div>";
             $nestedData[] = "<div>" . strtoupper($row['nm_customer']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['total_invoice']) . "</div>";
+            $nestedData[] = "<div class='text-right'>" . number_format($row['total_invoice_dpp']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['total_bayar']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['total_piutang']) . "</div>";
             $nestedData[] = "<a href='javascript:void(0)' class='btn btn-sm btn-warning view-detail' data-name='{$nm_customer}' data-customer='{$id_customer}'><i class='fa fa-eye'></i> View</a>";
@@ -270,9 +277,10 @@ class Report_penjualan_model extends BF_Model
             "recordsFiltered" => intval($totalFiltered),
             "data"            => $data,
             "grandTotal"      => [
-                "total_invoice" => number_format($grand['total_invoice']),
-                "total_bayar"   => number_format($grand['total_bayar']),
-                "total_piutang" => number_format($grand['total_piutang']),
+                "total_invoice"     => number_format($grand['total_invoice']),
+                "total_invoice_dpp" => number_format($grand['total_invoice_dpp']),
+                "total_bayar"       => number_format($grand['total_bayar']),
+                "total_piutang"     => number_format($grand['total_piutang']),
             ]
         ];
 
@@ -282,12 +290,14 @@ class Report_penjualan_model extends BF_Model
     public function get_query_json_customer($like_value = NULL, $column_order = NULL, $column_dir = NULL, $limit_start = NULL, $limit_length = NULL, $tgl_dari = NULL, $tgl_sampai = NULL, $id_sales = NULL)
     {
         // Mapping sesuai index kolom tabel di view:
-        // 0=No, 1=Customer, 2=Total Invoice, 3=Total Bayar, 4=Total Piutang, 5=Aksi
+        // 0=No, 1=Customer, 2=Total Invoice, 3=Revenue (exclude PPn),
+        // 4=Total Bayar, 5=Total Piutang, 6=Aksi
         $columns_order_by = [
             1 => 'nm_customer',
             2 => 'total_invoice',
-            3 => 'total_bayar',
-            4 => 'total_piutang',
+            3 => 'total_invoice_dpp',
+            4 => 'total_bayar',
+            5 => 'total_piutang',
         ];
 
         // Helper filter (Tanggal & Sales)
@@ -305,10 +315,13 @@ class Report_penjualan_model extends BF_Model
             }
         };
 
+        // total_invoice     = INCLUDE PPN (nilai riil tagihan).
+        // total_invoice_dpp = EXCLUDE PPN (DPP), ROUND(SUM(grand_total)/1.11), setara 4101-01-01.
         $select = '
         i.id_customer,
         i.nm_customer,
         SUM(i.grand_total) AS total_invoice,
+        ROUND(SUM(i.grand_total) / 1.11) AS total_invoice_dpp,
         SUM(i.total_bayar) AS total_bayar,
         SUM(i.piutang) AS total_piutang
     ';
@@ -407,10 +420,12 @@ class Report_penjualan_model extends BF_Model
     {
         // Disamakan dengan tampilan (get_query_json_customer): ambil total_invoice,
         // total_bayar, dan total_piutang, group per id_customer + nm_customer.
+        // total_invoice (include PPN) + total_invoice_dpp (exclude PPN / DPP) utk export.
         $this->db->select('
         i.id_customer,
         i.nm_customer,
         SUM(i.grand_total) AS total_invoice,
+        ROUND(SUM(i.grand_total) / 1.11) AS total_invoice_dpp,
         SUM(i.total_bayar) AS total_bayar,
         SUM(i.piutang) AS total_piutang
     ');
@@ -449,8 +464,10 @@ class Report_penjualan_model extends BF_Model
      */
     public function get_grand_total_customer($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL, $id_sales = NULL)
     {
+        // Grand total footer: include PPN + exclude PPN (DPP).
         $this->db->select('
             SUM(i.grand_total) AS total_invoice,
+            ROUND(SUM(i.grand_total) / 1.11) AS total_invoice_dpp,
             SUM(i.total_bayar) AS total_bayar,
             SUM(i.piutang) AS total_piutang
         ', false);
@@ -479,9 +496,10 @@ class Report_penjualan_model extends BF_Model
         $row = $this->db->get()->row();
 
         return [
-            'total_invoice' => (float) ($row->total_invoice ?? 0),
-            'total_bayar'   => (float) ($row->total_bayar ?? 0),
-            'total_piutang' => (float) ($row->total_piutang ?? 0),
+            'total_invoice'     => (float) ($row->total_invoice ?? 0),
+            'total_invoice_dpp' => (float) ($row->total_invoice_dpp ?? 0),
+            'total_bayar'       => (float) ($row->total_bayar ?? 0),
+            'total_piutang'     => (float) ($row->total_piutang ?? 0),
         ];
     }
 
@@ -520,6 +538,7 @@ class Report_penjualan_model extends BF_Model
             $nestedData[] = "<div class='text-center'>" . strtoupper($row['satuan']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['qty_total']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['penjualan_total']) . "</div>";
+            $nestedData[] = "<div class='text-right'>" . number_format($row['penjualan_total_dpp']) . "</div>";
 
             $data[] = $nestedData;
             $urut++;
@@ -538,8 +557,9 @@ class Report_penjualan_model extends BF_Model
             "recordsFiltered" => intval($totalFiltered),
             "data"            => $data,
             "grandTotal"      => [
-                "qty_total"       => number_format($grand['qty_total']),
-                "penjualan_total" => number_format($grand['penjualan_total']),
+                "qty_total"           => number_format($grand['qty_total']),
+                "penjualan_total"     => number_format($grand['penjualan_total']),
+                "penjualan_total_dpp" => number_format($grand['penjualan_total_dpp']),
             ]
         ];
 
@@ -549,12 +569,13 @@ class Report_penjualan_model extends BF_Model
     public function get_query_json_product($like_value = NULL, $column_order = NULL, $column_dir = NULL, $limit_start = NULL, $limit_length = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
     {
         // Mapping sesuai index kolom tabel di view:
-        // 0=No, 1=Produk, 2=Satuan, 3=Kuantitas, 4=Penjualan
+        // 0=No, 1=Produk, 2=Satuan, 3=Kuantitas, 4=Penjualan, 5=Revenue (exclude PPn)
         $columns_order_by = [
             1 => 'nama_barang',
             2 => 'd.uom',
             3 => 'qty_total',
             4 => 'penjualan_total',
+            5 => 'penjualan_total_dpp',
         ];
 
         $apply_date_filter = function () use ($tgl_dari, $tgl_sampai) {
@@ -604,11 +625,13 @@ class Report_penjualan_model extends BF_Model
         // =============================
         // 3) data paginasi (group by nama produk+satuan - historis nama produk)
         // =============================
+        // penjualan_total     = INCLUDE PPN. penjualan_total_dpp = EXCLUDE PPN (DPP), setara 4101-01-01.
         $this->db->select("
         d.nm_produk AS nama_barang,
         d.uom AS satuan,
         SUM(d.qty) AS qty_total,
-        SUM(d.subtotal) AS penjualan_total
+        SUM(d.subtotal) AS penjualan_total,
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
     ", false);
 
         $this->db->from('tr_invoice_sales i');
@@ -642,11 +665,13 @@ class Report_penjualan_model extends BF_Model
     {
         // NOTE: rumus & grouping harus identik dengan get_query_json_product()
         // supaya angka di grid (index) dan di export Excel selalu sama.
+        // Export: include PPN + exclude PPN (DPP).
         $this->db->select("
         d.nm_produk AS nama_barang,
         d.uom AS satuan,
         SUM(d.qty) AS qty_total,
-        SUM(d.subtotal) AS penjualan_total
+        SUM(d.subtotal) AS penjualan_total,
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
     ", false);
         $this->db->from('tr_invoice_sales i');
         $this->db->join('tr_invoice_sales_detail d', 'd.id_invoice = i.id_invoice', 'inner');
@@ -681,9 +706,11 @@ class Report_penjualan_model extends BF_Model
      */
     public function get_grand_total_product($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
     {
+        // Grand total footer: include PPN + exclude PPN (DPP).
         $this->db->select("
             SUM(d.qty) AS qty_total,
-            SUM(d.subtotal) AS penjualan_total
+            SUM(d.subtotal) AS penjualan_total,
+            ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
         ", false);
         $this->db->from('tr_invoice_sales i');
         $this->db->join('tr_invoice_sales_detail d', 'd.id_invoice = i.id_invoice', 'inner');
@@ -708,8 +735,9 @@ class Report_penjualan_model extends BF_Model
         $row = $this->db->get()->row();
 
         return [
-            'qty_total'       => (float) ($row->qty_total ?? 0),
-            'penjualan_total' => (float) ($row->penjualan_total ?? 0),
+            'qty_total'           => (float) ($row->qty_total ?? 0),
+            'penjualan_total'     => (float) ($row->penjualan_total ?? 0),
+            'penjualan_total_dpp' => (float) ($row->penjualan_total_dpp ?? 0),
         ];
     }
 
@@ -751,27 +779,32 @@ class Report_penjualan_model extends BF_Model
         $currentBarang = null;
         $subQty = 0;
         $subSales = 0;
+        $subSalesDpp = 0;
 
         $grandQty = 0;
         $grandSales = 0;
+        $grandSalesDpp = 0;
 
         foreach ($rows as $idx => $r) {
             $barang   = $r['nama_barang'];
             $pelanggan = $r['pelanggan'];
             $qty      = (float)$r['qty_total'];
             $sales    = (float)$r['penjualan_total'];
+            $salesDpp = (float)$r['penjualan_total_dpp'];
 
             // kalau barang berganti -> sisipkan subtotal barang sebelumnya
             if ($currentBarang !== null && $barang !== $currentBarang) {
                 $data[] = [
-                    'nama_barang' => '',
-                    'pelanggan'   => '<b>Total Pelanggan</b>',
-                    'kuantitas'   => "<div class='text-right'><b>" . number_format($subQty, 0, ',', '.') . "</b></div>",
-                    'penjualan'   => "<div class='text-right'><b>" . number_format($subSales, 0, ',', '.') . "</b></div>",
+                    'nama_barang'   => '',
+                    'pelanggan'     => '<b>Total Pelanggan</b>',
+                    'kuantitas'     => "<div class='text-right'><b>" . number_format($subQty, 0, ',', '.') . "</b></div>",
+                    'penjualan'     => "<div class='text-right'><b>" . number_format($subSales, 0, ',', '.') . "</b></div>",
+                    'penjualan_dpp' => "<div class='text-right'><b>" . number_format($subSalesDpp, 0, ',', '.') . "</b></div>",
                     'DT_RowClass' => 'row-subtotal'
                 ];
                 $subQty = 0;
                 $subSales = 0;
+                $subSalesDpp = 0;
             }
 
             $isFirstRowBarang = ($barang !== $currentBarang);
@@ -779,9 +812,11 @@ class Report_penjualan_model extends BF_Model
 
             $subQty   += $qty;
             $subSales += $sales;
+            $subSalesDpp += $salesDpp;
 
             $grandQty   += $qty;
             $grandSales += $sales;
+            $grandSalesDpp += $salesDpp;
 
             $data[] = [
                 'nama_barang' => $isFirstRowBarang
@@ -790,6 +825,7 @@ class Report_penjualan_model extends BF_Model
                 'pelanggan' => "<div>{$pelanggan}</div>",
                 'kuantitas' => "<div class='text-right'>" . number_format($qty, 0, ',', '.') . "</div>",
                 'penjualan' => "<div class='text-right'>" . number_format($sales, 0, ',', '.') . "</div>",
+                'penjualan_dpp' => "<div class='text-right'>" . number_format($salesDpp, 0, ',', '.') . "</div>",
                 'DT_RowClass' => 'row-detail'
             ];
         }
@@ -797,19 +833,21 @@ class Report_penjualan_model extends BF_Model
         // subtotal terakhir
         if ($currentBarang !== null) {
             $data[] = [
-                'nama_barang' => '',
-                'pelanggan'   => '<b>Total Pelanggan</b>',
-                'kuantitas'   => "<div class='text-right'><b>" . number_format($subQty, 0, ',', '.') . "</b></div>",
-                'penjualan'   => "<div class='text-right'><b>" . number_format($subSales, 0, ',', '.') . "</b></div>",
+                'nama_barang'   => '',
+                'pelanggan'     => '<b>Total Pelanggan</b>',
+                'kuantitas'     => "<div class='text-right'><b>" . number_format($subQty, 0, ',', '.') . "</b></div>",
+                'penjualan'     => "<div class='text-right'><b>" . number_format($subSales, 0, ',', '.') . "</b></div>",
+                'penjualan_dpp' => "<div class='text-right'><b>" . number_format($subSalesDpp, 0, ',', '.') . "</b></div>",
                 'DT_RowClass' => 'row-subtotal'
             ];
 
             // grand total
             $data[] = [
-                'nama_barang' => '<b>Total Nama Barang</b>',
-                'pelanggan'   => '',
-                'kuantitas'   => "<div class='text-right'><b>" . number_format($grandQty, 0, ',', '.') . "</b></div>",
-                'penjualan'   => "<div class='text-right'><b>" . number_format($grandSales, 0, ',', '.') . "</b></div>",
+                'nama_barang'   => '<b>Total Nama Barang</b>',
+                'pelanggan'     => '',
+                'kuantitas'     => "<div class='text-right'><b>" . number_format($grandQty, 0, ',', '.') . "</b></div>",
+                'penjualan'     => "<div class='text-right'><b>" . number_format($grandSales, 0, ',', '.') . "</b></div>",
+                'penjualan_dpp' => "<div class='text-right'><b>" . number_format($grandSalesDpp, 0, ',', '.') . "</b></div>",
                 'DT_RowClass' => 'row-grandtotal'
             ];
         }
@@ -891,12 +929,14 @@ class Report_penjualan_model extends BF_Model
         // =============================
         // 3) data
         // =============================
+        // penjualan_total = INCLUDE PPN. penjualan_total_dpp = EXCLUDE PPN (DPP), setara 4101-01-01.
         $this->db->select("
         d.id_produk,
         d.nm_produk AS nama_barang,
         IFNULL(i.nm_customer,'-') AS pelanggan,
         SUM(d.qty) AS qty_total,
-        SUM(d.subtotal) AS penjualan_total
+        SUM(d.subtotal) AS penjualan_total,
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
     ", false);
 
         $this->db->from('tr_invoice_sales i');
@@ -934,12 +974,14 @@ class Report_penjualan_model extends BF_Model
 
     public function get_export_barang_per_pelanggan($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
     {
+        // Export: include PPN + exclude PPN (DPP).
         $this->db->select("
         d.id_produk,
         d.nm_produk AS nama_barang,
         IFNULL(i.nm_customer,'-') AS pelanggan,
         SUM(d.qty) AS qty_total,
-        SUM(d.subtotal) AS penjualan_total
+        SUM(d.subtotal) AS penjualan_total,
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
     ", false);
 
         $this->db->from('tr_invoice_sales i');
@@ -1003,9 +1045,11 @@ class Report_penjualan_model extends BF_Model
         $currentCust = null;
         $subQty = 0;
         $subSales = 0;
+        $subSalesDpp = 0;
 
         $grandQty = 0;
         $grandSales = 0;
+        $grandSalesDpp = 0;
 
         foreach ($query->result_array() as $row) {
             $cust   = $row['pelanggan'];
@@ -1013,6 +1057,7 @@ class Report_penjualan_model extends BF_Model
             $satuan = $row['satuan'];
             $qty    = (float)$row['qty_total'];
             $sales  = (float)$row['penjualan_total'];
+            $salesDpp = (float)$row['penjualan_total_dpp'];
 
             // saat customer berganti -> subtotal customer sebelumnya
             if ($currentCust !== null && $cust !== $currentCust) {
@@ -1022,9 +1067,11 @@ class Report_penjualan_model extends BF_Model
                     "",
                     "<div class='text-right'><b>" . number_format($subQty, 0, ',', '.') . "</b></div>",
                     "<div class='text-right'><b>" . number_format($subSales, 0, ',', '.') . "</b></div>",
+                    "<div class='text-right'><b>" . number_format($subSalesDpp, 0, ',', '.') . "</b></div>",
                 ];
                 $subQty = 0;
                 $subSales = 0;
+                $subSalesDpp = 0;
             }
 
             $isFirst = ($cust !== $currentCust);
@@ -1032,8 +1079,10 @@ class Report_penjualan_model extends BF_Model
 
             $subQty += $qty;
             $subSales += $sales;
+            $subSalesDpp += $salesDpp;
             $grandQty += $qty;
             $grandSales += $sales;
+            $grandSalesDpp += $salesDpp;
 
             $data[] = [
                 $isFirst ? "<div class='cell-cust'>{$cust}</div>" : "<div class='cell-cust cell-cust-empty'></div>",
@@ -1041,6 +1090,7 @@ class Report_penjualan_model extends BF_Model
                 "<div class='text-center'>" . strtoupper($satuan) . "</div>",
                 "<div class='text-right'>" . number_format($qty, 0, ',', '.') . "</div>",
                 "<div class='text-right'>" . number_format($sales, 0, ',', '.') . "</div>",
+                "<div class='text-right'>" . number_format($salesDpp, 0, ',', '.') . "</div>",
             ];
         }
 
@@ -1052,6 +1102,7 @@ class Report_penjualan_model extends BF_Model
                 "",
                 "<div class='text-right'><b>" . number_format($subQty, 0, ',', '.') . "</b></div>",
                 "<div class='text-right'><b>" . number_format($subSales, 0, ',', '.') . "</b></div>",
+                "<div class='text-right'><b>" . number_format($subSalesDpp, 0, ',', '.') . "</b></div>",
             ];
 
             $data[] = [
@@ -1060,6 +1111,7 @@ class Report_penjualan_model extends BF_Model
                 "",
                 "<div class='text-right'><b>" . number_format($grandQty, 0, ',', '.') . "</b></div>",
                 "<div class='text-right'><b>" . number_format($grandSales, 0, ',', '.') . "</b></div>",
+                "<div class='text-right'><b>" . number_format($grandSalesDpp, 0, ',', '.') . "</b></div>",
             ];
         }
 
@@ -1121,12 +1173,14 @@ class Report_penjualan_model extends BF_Model
         $totalFiltered = (int)$this->db->get()->row()->total;
 
         // ===== data =====
+        // penjualan_total = INCLUDE PPN. penjualan_total_dpp = EXCLUDE PPN (DPP), setara 4101-01-01.
         $this->db->select("
         IFNULL(i.nm_customer,'-') AS pelanggan,
         d.nm_produk AS nama_barang,
         d.uom AS satuan,
         SUM(d.qty) AS qty_total,
-        SUM(d.subtotal) AS penjualan_total
+        SUM(d.subtotal) AS penjualan_total,
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
     ", false);
 
         $this->db->from('tr_invoice_sales i');
@@ -1158,12 +1212,14 @@ class Report_penjualan_model extends BF_Model
     public function get_export_customer_per_barang($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL, $id_sales = NULL)
     {
         // Group per nm_customer + nm_produk + uom, konsisten dengan grid.
+        // Export: include PPN + exclude PPN (DPP).
         $this->db->select("
         IFNULL(i.nm_customer,'-') AS pelanggan,
         d.nm_produk AS nama_barang,
         d.uom AS satuan,
         SUM(d.qty) AS qty_total,
-        SUM(d.subtotal) AS penjualan_total
+        SUM(d.subtotal) AS penjualan_total,
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
     ", false);
 
         $this->db->from('tr_invoice_sales i');
@@ -1294,9 +1350,10 @@ class Report_penjualan_model extends BF_Model
 
         $resultRows = [];
 
-        // total cabang (target + actual)
+        // total cabang (target + actual + actual DPP)
         $totalTarget = array_fill_keys($months, 0);
         $totalActual = array_fill_keys($months, 0);
+        $totalActualDpp = array_fill_keys($months, 0);
 
         foreach ($allSales as $sales) {
             $id_karyawan = $sales['id'];
@@ -1311,13 +1368,22 @@ class Report_penjualan_model extends BF_Model
             // --- HITUNG TSCORE
             $t_score_target = 0;
             $t_score_actual = 0;
+            $t_score_actual_dpp = 0;
+
+            // Actual DPP per bulan = Actual (include PPN) / 1.11, dibulatkan,
+            // selaras dengan Pendapatan Penjualan 4101-01-01.
+            $aDpp = [];
 
             foreach ($months as $m) {
+                $aDpp[$m] = round((float)$a[$m] / 1.11);
+
                 $t_score_target += (float)$t[$m];
                 $t_score_actual += (float)$a[$m];
+                $t_score_actual_dpp += $aDpp[$m];
 
                 $totalTarget[$m] += (float)$t[$m];
                 $totalActual[$m] += (float)$a[$m];
+                $totalActualDpp[$m] += $aDpp[$m];
             }
 
             // BARIS 1: TARGET
@@ -1339,7 +1405,7 @@ class Report_penjualan_model extends BF_Model
                 't_score' => (float)$t_score_target
             ];
 
-            // BARIS 2: ACTUAL
+            // BARIS 2: ACTUAL (include PPN)
             $resultRows[] = [
                 'nama_sales' => '', // biar tampil kayak excel (nama cuma sekali)
                 'tipe' => 'Actual (based on invoice)',
@@ -1357,6 +1423,25 @@ class Report_penjualan_model extends BF_Model
                 'des' => (float)$a['des'],
                 't_score' => (float)$t_score_actual
             ];
+
+            // BARIS 3: Revenue (exclude PPn) = Actual / 1.11, selaras 4101-01-01
+            $resultRows[] = [
+                'nama_sales' => '',
+                'tipe' => 'Revenue (exclude PPn)',
+                'jan' => (float)$aDpp['jan'],
+                'feb' => (float)$aDpp['feb'],
+                'mar' => (float)$aDpp['mar'],
+                'apr' => (float)$aDpp['apr'],
+                'mei' => (float)$aDpp['mei'],
+                'jun' => (float)$aDpp['jun'],
+                'jul' => (float)$aDpp['jul'],
+                'agu' => (float)$aDpp['agu'],
+                'sep' => (float)$aDpp['sep'],
+                'okt' => (float)$aDpp['okt'],
+                'nov' => (float)$aDpp['nov'],
+                'des' => (float)$aDpp['des'],
+                't_score' => (float)$t_score_actual_dpp
+            ];
         }
 
         // =========================
@@ -1364,6 +1449,7 @@ class Report_penjualan_model extends BF_Model
         // =========================
         $totalTargetScore = array_sum($totalTarget);
         $totalActualScore = array_sum($totalActual);
+        $totalActualDppScore = array_sum($totalActualDpp);
 
         $resultRows[] = [
             'nama_sales' => 'TARGET CABANG',
@@ -1399,6 +1485,24 @@ class Report_penjualan_model extends BF_Model
             'nov' => $totalActual['nov'],
             'des' => $totalActual['des'],
             't_score' => $totalActualScore
+        ];
+
+        $resultRows[] = [
+            'nama_sales' => '',
+            'tipe' => 'Revenue (exclude PPn)',
+            'jan' => $totalActualDpp['jan'],
+            'feb' => $totalActualDpp['feb'],
+            'mar' => $totalActualDpp['mar'],
+            'apr' => $totalActualDpp['apr'],
+            'mei' => $totalActualDpp['mei'],
+            'jun' => $totalActualDpp['jun'],
+            'jul' => $totalActualDpp['jul'],
+            'agu' => $totalActualDpp['agu'],
+            'sep' => $totalActualDpp['sep'],
+            'okt' => $totalActualDpp['okt'],
+            'nov' => $totalActualDpp['nov'],
+            'des' => $totalActualDpp['des'],
+            't_score' => $totalActualDppScore
         ];
 
         return $resultRows;
@@ -1480,6 +1584,7 @@ class Report_penjualan_model extends BF_Model
 
         $totalTarget = array_fill_keys($months, 0);
         $totalActual = array_fill_keys($months, 0);
+        $totalActualDpp = array_fill_keys($months, 0);
 
         foreach ($allSales as $sales) {
             $id_karyawan = $sales['id'];
@@ -1493,13 +1598,21 @@ class Report_penjualan_model extends BF_Model
 
             $t_score_target = 0;
             $t_score_actual = 0;
+            $t_score_actual_dpp = 0;
+
+            // Actual DPP per bulan = Actual (include PPN) / 1.11, selaras 4101-01-01.
+            $aDpp = [];
 
             foreach ($months as $m) {
+                $aDpp[$m] = round((float)$a[$m] / 1.11);
+
                 $t_score_target += (float)$t[$m];
                 $t_score_actual += (float)$a[$m];
+                $t_score_actual_dpp += $aDpp[$m];
 
                 $totalTarget[$m] += (float)$t[$m];
                 $totalActual[$m] += (float)$a[$m];
+                $totalActualDpp[$m] += $aDpp[$m];
             }
 
             // TARGET row
@@ -1521,7 +1634,7 @@ class Report_penjualan_model extends BF_Model
                 't_score' => (float)$t_score_target
             ];
 
-            // ACTUAL row
+            // ACTUAL row (include PPN)
             $resultRows[] = (object)[
                 'nama_sales' => '',
                 'tipe' => 'Actual (based on invoice)',
@@ -1539,11 +1652,31 @@ class Report_penjualan_model extends BF_Model
                 'des' => (float)$a['des'],
                 't_score' => (float)$t_score_actual
             ];
+
+            // Revenue (exclude PPn) row = Actual / 1.11
+            $resultRows[] = (object)[
+                'nama_sales' => '',
+                'tipe' => 'Revenue (exclude PPn)',
+                'jan' => (float)$aDpp['jan'],
+                'feb' => (float)$aDpp['feb'],
+                'mar' => (float)$aDpp['mar'],
+                'apr' => (float)$aDpp['apr'],
+                'mei' => (float)$aDpp['mei'],
+                'jun' => (float)$aDpp['jun'],
+                'jul' => (float)$aDpp['jul'],
+                'agu' => (float)$aDpp['agu'],
+                'sep' => (float)$aDpp['sep'],
+                'okt' => (float)$aDpp['okt'],
+                'nov' => (float)$aDpp['nov'],
+                'des' => (float)$aDpp['des'],
+                't_score' => (float)$t_score_actual_dpp
+            ];
         }
 
         // TOTAL CABANG
         $totalTargetScore = array_sum($totalTarget);
         $totalActualScore = array_sum($totalActual);
+        $totalActualDppScore = array_sum($totalActualDpp);
 
         $resultRows[] = (object)[
             'nama_sales' => 'TARGET CABANG',
@@ -1579,6 +1712,24 @@ class Report_penjualan_model extends BF_Model
             'nov' => $totalActual['nov'],
             'des' => $totalActual['des'],
             't_score' => $totalActualScore
+        ];
+
+        $resultRows[] = (object)[
+            'nama_sales' => '',
+            'tipe' => 'Revenue (exclude PPn)',
+            'jan' => $totalActualDpp['jan'],
+            'feb' => $totalActualDpp['feb'],
+            'mar' => $totalActualDpp['mar'],
+            'apr' => $totalActualDpp['apr'],
+            'mei' => $totalActualDpp['mei'],
+            'jun' => $totalActualDpp['jun'],
+            'jul' => $totalActualDpp['jul'],
+            'agu' => $totalActualDpp['agu'],
+            'sep' => $totalActualDpp['sep'],
+            'okt' => $totalActualDpp['okt'],
+            'nov' => $totalActualDpp['nov'],
+            'des' => $totalActualDpp['des'],
+            't_score' => $totalActualDppScore
         ];
 
         return $resultRows;

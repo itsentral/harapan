@@ -43,6 +43,7 @@
                         <th>Satuan</th>
                         <th>Kuantitas</th>
                         <th>Penjualan</th>
+                        <th>Revenue (exclude PPn)</th>
                     </tr>
                 </thead>
                 <tbody></tbody>

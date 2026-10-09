@@ -42,6 +42,7 @@
                         <th>Tanggal</th>
                         <th>Customer</th>
                         <th>Total Invoice</th>
+                        <th>Revenue (exclude PPn)</th>
                         <th>Total Bayar</th>
                         <th>Piutang</th>
                         <th>Umur (hr)</th>
@@ -102,7 +103,7 @@
                 [2, "desc"]
             ],
             "columnDefs": [{
-                    "targets": [0, 8],
+                    "targets": [0, 9],
                     "orderable": false
                 },
                 {
