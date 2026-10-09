@@ -28,6 +28,7 @@
                         <th>Pelanggan</th>
                         <th style="width:12%;">Kuantitas</th>
                         <th style="width:15%;">Penjualan</th>
+                        <th style="width:15%;">Revenue (exclude PPn)</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -102,6 +103,10 @@
                 },
                 {
                     data: 'penjualan',
+                    className: 'text-right'
+                },
+                {
+                    data: 'penjualan_dpp',
                     className: 'text-right'
                 }
             ],

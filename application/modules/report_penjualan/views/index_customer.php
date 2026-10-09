@@ -40,6 +40,7 @@
                         <th style="width: 10px;">No</th>
                         <th>Customer</th>
                         <th>Total Invoice</th>
+                        <th>Revenue (exclude PPn)</th>
                         <th>Total Bayar</th>
                         <th>Total Piutang</th>
                         <th>Aksi</th>
@@ -50,6 +51,7 @@
                     <tr style="font-weight:bold; background:#f5f5f5;">
                         <th colspan="2" class="text-center">Total</th>
                         <th class="text-right" id="footTotalInvoice">0</th>
+                        <th class="text-right" id="footTotalInvoiceDpp">0</th>
                         <th class="text-right" id="footTotalBayar">0</th>
                         <th class="text-right" id="footTotalPiutang">0</th>
                         <th></th>
@@ -152,7 +154,7 @@
                 [1, "asc"]
             ],
             "columnDefs": [{
-                    "targets": [0, 5],
+                    "targets": [0, 6],
                     "orderable": false
                 },
                 {
@@ -178,10 +180,12 @@
                     // isi footer grand total dari response
                     if (json && json.grandTotal) {
                         $('#footTotalInvoice').text(json.grandTotal.total_invoice);
+                        $('#footTotalInvoiceDpp').text(json.grandTotal.total_invoice_dpp);
                         $('#footTotalBayar').text(json.grandTotal.total_bayar);
                         $('#footTotalPiutang').text(json.grandTotal.total_piutang);
                     } else {
                         $('#footTotalInvoice').text('0');
+                        $('#footTotalInvoiceDpp').text('0');
                         $('#footTotalBayar').text('0');
                         $('#footTotalPiutang').text('0');
                     }
