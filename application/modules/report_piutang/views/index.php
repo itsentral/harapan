@@ -178,7 +178,7 @@
 
                     $('#no-data-area').hide();
                     renderTable(res.data, res.total_piutang, res.total_saldo_piutang);
-                    $('#total_piutang_display').val(formatNumber(res.total_piutang));
+                    $('#total_piutang_display').val(formatNumber(res.total_saldo_piutang));
                     $('#result-area').show();
                     $('#btn-print, #btn-excel').show().data('tanggal', tgl_server);
                 },

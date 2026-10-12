@@ -22,11 +22,20 @@
                         <th>No</th>
                         <th>Id Material</th>
                         <th>Product</th>
+                        <th>Gudang</th>
+                        <th>Qty</th>
                         <th>Costbook</th>
+                        <th>Total Nilai</th>
                     </tr>
                 </thead>
                 <tbody>
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="6" style="text-align:right">Grand Total</th>
+                        <th id="grandTotalPricebook" style="text-align:right">0</th>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
@@ -77,6 +86,11 @@
                 type: "post",
                 data: function(d) {
                     d.tanggal = $('#filterTanggal').val();
+                },
+                dataSrc: function(json) {
+                    var gt = (json && json.grandTotalFmt !== undefined) ? json.grandTotalFmt : '0';
+                    $('#grandTotalPricebook').text(gt);
+                    return json.data;
                 },
                 cache: false
             }

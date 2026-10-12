@@ -31,6 +31,7 @@ class Pricebook_model extends BF_Model
         $totalData     = $fetch['totalData'];
         $totalFiltered = $fetch['totalFiltered'];
         $query         = $fetch['query'];
+        $grandTotal    = $fetch['grandTotal'];
         $result_data   = $query->result_array();
 
         $data = [];
@@ -45,13 +46,19 @@ class Pricebook_model extends BF_Model
                 ? ($total_data - $start_dari) - $urut2
                 : $urut1 + $start_dari;
 
-            $costbook = isset($row['costbook']) ? $row['costbook'] : 0;
+            $costbook   = isset($row['costbook']) ? $row['costbook'] : 0;
+            $qty        = isset($row['qty']) ? $row['qty'] : 0;
+            $totalNilai = isset($row['total_nilai']) ? $row['total_nilai'] : 0;
+            $gudang     = isset($row['kd_gudang']) ? $row['kd_gudang'] : '';
 
             $nestedData = [];
             $nestedData[] = "<div align='center'>{$nomor}</div>";
             $nestedData[] = "<div align='center'>{$row['id_material']}</div>";
             $nestedData[] = "<div align='left'>{$row['nm_product']}</div>";
+            $nestedData[] = "<div align='center'>{$gudang}</div>";
+            $nestedData[] = "<div align='right'>" . number_format($qty, 0, ',', '.') . "</div>";
             $nestedData[] = "<div align='right'>" . number_format($costbook, 0, ',', '.') . "</div>";
+            $nestedData[] = "<div align='right'>" . number_format($totalNilai, 0, ',', '.') . "</div>";
 
             $data[] = $nestedData;
             $urut1++;
@@ -62,7 +69,9 @@ class Pricebook_model extends BF_Model
             "draw"            => intval($requestData['draw']),
             "recordsTotal"    => intval($totalData),
             "recordsFiltered" => intval($totalFiltered),
-            "data"            => $data
+            "data"            => $data,
+            "grandTotal"      => $grandTotal,
+            "grandTotalFmt"   => number_format($grandTotal, 0, ',', '.')
         ];
 
         echo json_encode($json_data);
@@ -98,7 +107,10 @@ class Pricebook_model extends BF_Model
             0 => 't.id_material',
             1 => 't.id_material',
             2 => 't.nm_product',
-            3 => 'costbook',
+            3 => 't.kd_gudang',
+            4 => 'qty',
+            5 => 'costbook',
+            6 => 'total_nilai',
         ];
 
         // ---- total data
@@ -107,7 +119,7 @@ class Pricebook_model extends BF_Model
         if ($has_tanggal) {
             $this->db->like('t.tgl_backup', $tanggal);
         }
-        $this->db->group_by('t.id_material');
+        $this->db->group_by('t.id_material, t.nm_product, t.kd_gudang');
         $totalData = count($this->db->get()->result_array());
 
         // ---- total filtered
@@ -120,13 +132,14 @@ class Pricebook_model extends BF_Model
             $this->db->group_start();
             $this->db->like('t.id_material', $like_value);
             $this->db->or_like('t.nm_product', $like_value);
+            $this->db->or_like('t.kd_gudang', $like_value);
             $this->db->group_end();
         }
-        $this->db->group_by('t.id_material');
+        $this->db->group_by('t.id_material, t.nm_product, t.kd_gudang');
         $totalFiltered = count($this->db->get()->result_array());
 
-        // ---- main query
-        $this->db->select('t.id_material, t.nm_product, MAX(t.harga_beli) AS costbook');
+        // ---- grand total (seluruh data terfilter, bukan hanya halaman aktif)
+        $this->db->select('SUM(t.qty_stock * t.harga_beli) AS total_nilai');
         $this->db->from($table);
         if ($has_tanggal) {
             $this->db->like('t.tgl_backup', $tanggal);
@@ -135,9 +148,29 @@ class Pricebook_model extends BF_Model
             $this->db->group_start();
             $this->db->like('t.id_material', $like_value);
             $this->db->or_like('t.nm_product', $like_value);
+            $this->db->or_like('t.kd_gudang', $like_value);
             $this->db->group_end();
         }
-        $this->db->group_by('t.id_material, t.nm_product');
+        $grand_rows = $this->db->get()->result_array();
+        $grandTotal = 0;
+        foreach ($grand_rows as $gr) {
+            $grandTotal += (float) $gr['total_nilai'];
+        }
+
+        // ---- main query
+        $this->db->select('t.id_material, t.nm_product, t.kd_gudang, SUM(t.qty_stock) AS qty, MAX(t.harga_beli) AS costbook, SUM(t.qty_stock * t.harga_beli) AS total_nilai');
+        $this->db->from($table);
+        if ($has_tanggal) {
+            $this->db->like('t.tgl_backup', $tanggal);
+        }
+        if ($like_value) {
+            $this->db->group_start();
+            $this->db->like('t.id_material', $like_value);
+            $this->db->or_like('t.nm_product', $like_value);
+            $this->db->or_like('t.kd_gudang', $like_value);
+            $this->db->group_end();
+        }
+        $this->db->group_by('t.id_material, t.nm_product, t.kd_gudang');
 
         if ($column_order !== null && isset($columns_order_by[$column_order])) {
             $this->db->order_by($columns_order_by[$column_order], $column_dir);
@@ -152,6 +185,7 @@ class Pricebook_model extends BF_Model
         return [
             'totalData'     => $totalData,
             'totalFiltered' => $totalFiltered,
+            'grandTotal'    => $grandTotal,
             'query'         => $query
         ];
     }
