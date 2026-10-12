@@ -189,4 +189,43 @@ class Pricebook_model extends BF_Model
             'query'         => $query
         ];
     }
+
+    /**
+     * Total nilai inventory keseluruhan (tanpa filter search/paging).
+     * Mengikuti sumber tabel sesuai ada/tidaknya filter tanggal.
+     */
+    public function get_total_inventory($tanggal = null)
+    {
+        $has_tanggal = ($tanggal !== null && $tanggal !== '');
+        $table = $has_tanggal ? 'warehouse_stock_per_days t' : 'warehouse_stock t';
+
+        $this->db->select('SUM(t.qty_stock * t.harga_beli) AS total_nilai');
+        $this->db->from($table);
+        if ($has_tanggal) {
+            $this->db->like('t.tgl_backup', $tanggal);
+        }
+        $row = $this->db->get()->row_array();
+
+        return isset($row['total_nilai']) ? (float) $row['total_nilai'] : 0;
+    }
+
+    /**
+     * Ambil data pricebook untuk keperluan export (semua baris, tanpa paging).
+     * Satu baris per id_material + nm_product + kd_gudang.
+     */
+    public function get_data_export($tanggal = null)
+    {
+        $has_tanggal = ($tanggal !== null && $tanggal !== '');
+        $table = $has_tanggal ? 'warehouse_stock_per_days t' : 'warehouse_stock t';
+
+        $this->db->select('t.id_material, t.nm_product, t.kd_gudang, SUM(t.qty_stock) AS qty, MAX(t.harga_beli) AS costbook, SUM(t.qty_stock * t.harga_beli) AS total_nilai');
+        $this->db->from($table);
+        if ($has_tanggal) {
+            $this->db->like('t.tgl_backup', $tanggal);
+        }
+        $this->db->group_by('t.id_material, t.nm_product, t.kd_gudang');
+        $this->db->order_by('t.nm_product', 'asc');
+
+        return $this->db->get()->result();
+    }
 }

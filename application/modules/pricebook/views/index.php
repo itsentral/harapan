@@ -1,5 +1,19 @@
 <link rel="stylesheet" href="<?= base_url('assets/plugins/datatables/dataTables.bootstrap.css') ?>">
 
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-solid">
+            <div class="box-body">
+                <h4 style="margin-top:0;margin-bottom:10px"><b>Total Inventory</b></h4>
+                <div id="totalInventoryBox"
+                     style="background:#d9edf7;border:1px solid #bce8f1;border-radius:4px;padding:18px 20px;font-size:22px;font-weight:bold;color:#31708f">
+                    0
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="box box-primary">
     <div class="box-header clearfix">
         <span class="pull-left">
@@ -7,11 +21,14 @@
                 Kosongkan tanggal untuk harga sekarang. Pilih tanggal untuk harga lalu.
             </small>
         </span>
-        <span class="pull-right" style="max-width:250px">
-            <div class="input-group">
+        <span class="pull-right">
+            <div class="input-group" style="max-width:250px;display:inline-table;vertical-align:middle">
                 <span class="input-group-addon">Tanggal</span>
                 <input type="text" name="tanggal" id="filterTanggal" class="form-control datepicker tanggal">
             </div>
+            <button type="button" id="btnExportExcel" class="btn btn-success" style="margin-left:5px">
+                <i class="fa fa-file-excel-o"></i> Download Excel
+            </button>
         </span>
     </div>
     <div class="box-body">
@@ -47,6 +64,7 @@
 <script>
     $(document).ready(function() {
         DataTables();
+        loadTotalInventory();
 
         $('.datepicker').datepicker({
             dateFormat: 'yy-mm-dd',
@@ -56,8 +74,32 @@
 
         $('#filterTanggal').on('change', function() {
             DataTables();
+            loadTotalInventory();
+        });
+
+        $('#btnExportExcel').on('click', function() {
+            var tanggal = $('#filterTanggal').val() || '';
+            window.location.href = siteurl + active_controller + 'export_excel?tanggal=' + encodeURIComponent(tanggal);
         });
     });
+
+    function loadTotalInventory() {
+        $('#totalInventoryBox').text('...');
+        $.ajax({
+            url: siteurl + active_controller + 'total_inventory',
+            type: 'post',
+            dataType: 'json',
+            data: {
+                tanggal: $('#filterTanggal').val()
+            },
+            success: function(res) {
+                $('#totalInventoryBox').text((res && res.totalFmt !== undefined) ? res.totalFmt : '0');
+            },
+            error: function() {
+                $('#totalInventoryBox').text('0');
+            }
+        });
+    }
 
     function DataTables() {
         $('#tablePricebook').DataTable({
