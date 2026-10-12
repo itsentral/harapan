@@ -86,7 +86,7 @@
                             <th class="text-center" style="vertical-align:middle;">Tanggal Dibuat</th>
                             <th class="text-center" style="vertical-align:middle;">Nilai Bayar</th>
                             <th class="text-center" style="vertical-align:middle;">Total Bayar</th>
-                            <th class="text-center" style="vertical-align:middle;">Sisa Piutang</th>
+                            <th class="text-center" style="vertical-align:middle;" hidden>Sisa Piutang</th>
                             <th class="text-center" style="vertical-align:middle;">Saldo Piutang</th>
                         </tr>
                     </thead>
@@ -95,7 +95,7 @@
                     <tfoot>
                         <tr>
                             <td colspan="9" class="text-right"><strong>Total Piutang</strong></td>
-                            <td class="text-right" id="tfoot-total"><strong></strong></td>
+                            <td class="text-right" id="tfoot-total" hidden><strong></strong></td>
                             <td class="text-right" id="tfoot-total-saldo"><strong></strong></td>
                         </tr>
                     </tfoot>
@@ -230,7 +230,7 @@
                 tbody += '<td class="text-center">' + (row.tgl_dibuat ? formatDate(row.tgl_dibuat) : '') + '</td>';
                 tbody += '<td class="text-right">' + (row.nilai_bayar !== '' ? formatNumber(row.nilai_bayar) : '') + '</td>';
                 tbody += '<td class="text-right">' + (row.total_bayar !== '' ? formatNumber(row.total_bayar) : '') + '</td>';
-                tbody += '<td class="text-right">' + formatNumber(row.sisa_piutang) + '</td>';
+                tbody += '<td class="text-right" hidden>' + formatNumber(row.sisa_piutang) + '</td>';
                 tbody += '<td class="text-right">' + (row.saldo_piutang !== '' ? formatNumber(row.saldo_piutang) : '') + '</td>';
                 tbody += '</tr>';
             });
