@@ -1448,6 +1448,10 @@ class Request_payment extends Admin_Controller
 	}
 	public function jurnal_save()
 	{
+		// CATATAN: Posting jurnal (tr_jurnal + GL japh/jurnal + tr_kartu_hutang) kini
+		// dibuat otomatis saat Save Payment (modul pembayaran_material). Method ini
+		// berfungsi sebagai KOREKSI jurnal yang sudah ada -> tidak membuat nomor JV
+		// baru dan tidak menaikkan counter nomor bukti, agar tidak terjadi double posting.
 		$id 			= $this->input->post("id");
 		$no_perkiraan 	= $this->input->post("no_perkiraan");
 		$keterangan 	= $this->input->post("keterangan");
@@ -1457,7 +1461,6 @@ class Request_payment extends Admin_Controller
 		$tipe			= $this->input->post('tipe');
 
 		$total			= 0;
-		$Nomor_JV 		= $this->Jurnal_model->get_no_buk('101');
 		$no_transaksi 	= $this->input->post("no_transaksi");
 		$tgl_jurnal  	= date('Y-m-d');
 
@@ -1469,7 +1472,18 @@ class Request_payment extends Admin_Controller
 		$id_supplier    = isset($header_payment->supplier) ? $header_payment->supplier : null;
 		$nama_supplier  = isset($header_payment->nm_supplier) ? $header_payment->nm_supplier : null;
 
+		// Ambil nomor JV GL yang SUDAH ADA untuk transaksi ini (dibuat saat Save Payment).
+		$japh_existing = $this->db->get_where(DBACC . '.japh', array('no_reff' => $no_transaksi))->row();
+		$is_koreksi    = !empty($japh_existing);
+		$Nomor_JV      = $is_koreksi ? $japh_existing->nomor : $this->Jurnal_model->get_no_buk('101');
+
 		$this->db->trans_begin();
+
+		// Bersihkan jurnal GL & kartu hutang lama untuk transaksi ini, lalu tulis ulang
+		// dari data form (idempotent -> aman untuk koreksi berulang, tanpa double).
+		$this->db->delete(DBACC . '.jurnal', array('no_reff' => $no_transaksi));
+		$this->db->delete('tr_kartu_hutang', array('no_reff' => $no_transaksi));
+
 		for ($i = 0; $i < count($id); $i++) {
 			$dataheader =  array(
 				'sts' => "1",
@@ -1518,23 +1532,32 @@ class Request_payment extends Admin_Controller
 			}
 		}
 
-		$keterangan	= 'Payment ' . $no_transaksi;
-		$dataJVhead = array(
-			'nomor' 	    	=> $Nomor_JV,
-			'tgl'	         	=> $tgl_jurnal,
-			'jml'	            => $total,
-			'kdcab'				=> '101',
-			'jenis_reff'	    => 'BUK',
-			'no_reff' 		    => $no_transaksi,
-			'jenis_ap'			=> 'V',
-			'note'				=> $keterangan,
-			'user_id'			=> $this->auth->user_name(),
-			'ho_valid'			=> '',
-			'batal'			    => '0'
-		);
-		$this->db->insert(DBACC . '.japh', $dataJVhead);
-		$Qry_Update_Cabang_acc	 = "UPDATE " . DBACC . ".pastibisa_tb_cabang SET nobuk=nobuk + 1 WHERE nocab='101'";
-		$this->db->query($Qry_Update_Cabang_acc);
+		if ($is_koreksi) {
+			// Koreksi: cukup update header JV yang sudah ada (tanpa nomor baru / counter).
+			$this->db->update(DBACC . '.japh', array(
+				'tgl' => $tgl_jurnal,
+				'jml' => $total,
+			), array('no_reff' => $no_transaksi));
+		} else {
+			// Fallback (data lama belum terposting): buat header JV baru + naikkan counter.
+			$keterangan = 'Payment ' . $no_transaksi;
+			$dataJVhead = array(
+				'nomor' 	    	=> $Nomor_JV,
+				'tgl'	         	=> $tgl_jurnal,
+				'jml'	            => $total,
+				'kdcab'				=> '101',
+				'jenis_reff'	    => 'BUK',
+				'no_reff' 		    => $no_transaksi,
+				'jenis_ap'			=> 'V',
+				'note'				=> $keterangan,
+				'user_id'			=> $this->auth->user_name(),
+				'ho_valid'			=> '',
+				'batal'			    => '0'
+			);
+			$this->db->insert(DBACC . '.japh', $dataJVhead);
+			$Qry_Update_Cabang_acc	 = "UPDATE " . DBACC . ".pastibisa_tb_cabang SET nobuk=nobuk + 1 WHERE nocab='101'";
+			$this->db->query($Qry_Update_Cabang_acc);
+		}
 
 		$this->db->trans_complete();
 		if ($this->db->trans_status()) {

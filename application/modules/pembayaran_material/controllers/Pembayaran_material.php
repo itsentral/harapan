@@ -230,7 +230,7 @@ class Pembayaran_material extends Admin_Controller
 					'debet'             => $jacc->kredit,
 					'kredit'            => $jacc->debet,
 					'nilai_valas_debet' => isset($jacc->nilai_valas_kredit) ? $jacc->nilai_valas_kredit : 0,
-					'nilai_valas_kredit'=> isset($jacc->nilai_valas_debet) ? $jacc->nilai_valas_debet : 0,
+					'nilai_valas_kredit' => isset($jacc->nilai_valas_debet) ? $jacc->nilai_valas_debet : 0,
 				]);
 				$total_rev += $jacc->kredit;
 			}
@@ -271,7 +271,7 @@ class Pembayaran_material extends Admin_Controller
 						'debet'             => $jacc->kredit,
 						'kredit'            => $jacc->debet,
 						'nilai_valas_debet' => isset($jacc->nilai_valas_kredit) ? $jacc->nilai_valas_kredit : 0,
-						'nilai_valas_kredit'=> isset($jacc->nilai_valas_debet) ? $jacc->nilai_valas_debet : 0,
+						'nilai_valas_kredit' => isset($jacc->nilai_valas_debet) ? $jacc->nilai_valas_debet : 0,
 					]);
 					$total_rev += $jacc->kredit;
 				}
@@ -1817,32 +1817,130 @@ class Pembayaran_material extends Admin_Controller
 			}
 
 			// 6) insert jurnal batch (1x) => no_transaksi = id_payment_paid
+			//    Sekaligus POSTING ke GL (japh + jurnal) dan tr_kartu_hutang,
+			//    agar tidak perlu lagi langkah "Submit Jurnal" terpisah.
 			if (!empty($post['jurnal_ls']) && is_array($post['jurnal_ls'])) {
 				$arr_jurnal = [];
-				$no_jurnal = 1;
+				$no_jurnal  = 1;
+
+				// Nomor Bukti Jurnal (JV) GL untuk header japh + detail jurnal.
+				// Dibentuk INLINE dengan logika IDENTIK get_no_buk() milik modul
+				// jurnal_nomor (yang dipakai proses "Simpan Payment Jurnal"), supaya
+				// formatnya konsisten 101BK<yy><nobuk> (bukan BKA). Tidak memakai
+				// $this->Jurnal_model karena nama kelas Jurnal_model bentrok antar
+				// modul di HMVC (definisi kelas yang ter-include duluan yang menang),
+				// sehingga hasilnya bisa berubah-ubah tergantung urutan load.
+				$Nomor_JV = null;
+				$row_cab = $this->db->query("SELECT nocab, subcab, nobuk FROM " . DBACC . ".pastibisa_tb_cabang WHERE nocab = '101' ORDER BY id")->row();
+				if ($row_cab) {
+					$kd_cab = $row_cab->nocab;
+					$kd_buk = (int) $row_cab->nobuk + 1;
+					if (strlen((string) $kd_buk) == 1) {
+						$kdadd = "0000";
+					} else if (strlen((string) $kd_buk) == 2) {
+						$kdadd = "000";
+					} else if (strlen((string) $kd_buk) == 3) {
+						$kdadd = "00";
+					} else if (strlen((string) $kd_buk) == 4) {
+						$kdadd = "0";
+					} else {
+						$kdadd = "0";
+					}
+					$Nomor_JV = $kd_cab . "B" . "K" . date("y") . $kdadd . $kd_buk;
+				}
+				if (!$Nomor_JV) throw new Exception('Gagal membuat Nomor JV: data cabang 101 tidak ditemukan.');
+
+				// COA yang dianggap Hutang Dagang -> ikut tercatat di tr_kartu_hutang
+				$coa_hutang_dagang = array('2101-01-01', '2101-01-02', '2101-01-04');
+
+				$total_debit_jurnal = 0;
 
 				foreach ($post['jurnal_ls'] as $item) {
-					$id_jurnal = $this->Pembayaran_material_model->generate_id_invoice_jurnal($no_jurnal);
+					$id_jurnal   = $this->Pembayaran_material_model->generate_id_invoice_jurnal($no_jurnal);
+					$coa_line    = $item['coa'];
+					$ket_line    = $item['keterangan'];
+					$tgl_line    = $item['tanggal_jurnal'] ?? $tgl_bayar;
+					$tipe_line   = $item['tipe'];
+					$debit_line  = $money($item['debit'] ?? 0);
+					$kredit_line = $money($item['kredit'] ?? 0);
 
+					// 6a) draft jurnal pembayaran (tr_jurnal) -> langsung sts=1 (sudah terposting)
 					$arr_jurnal[] = [
 						'no_jurnal'       => $id_jurnal,
-						'tgl_jurnal'      => $item['tanggal_jurnal'] ?? $tgl_bayar, // pakai dari post
-						'tipe'            => $item['tipe'],
-						'coa'             => $item['coa'],
+						'tgl_jurnal'      => $tgl_line, // pakai dari post
+						'tipe'            => $tipe_line,
+						'coa'             => $coa_line,
 						'nm_coa'          => $item['nm_coa'],
-						'debit'           => $money($item['debit'] ?? 0),
-						'kredit'          => $money($item['kredit'] ?? 0),
-						'keterangan'      => $item['keterangan'],
+						'debit'           => $debit_line,
+						'kredit'          => $kredit_line,
+						'keterangan'      => $ket_line,
 						'no_transaksi'    => $id_payment_paid,
 						'jenis_transaksi' => 'Payment',
+						'sts'             => '1',
 						'created_by'      => $this->auth->user_id(),
 						'created_date'    => date('Y-m-d'),
 					];
+
+					$total_debit_jurnal += $debit_line;
+
+					// 6b) detail jurnal GL
+					$ok = $this->db->insert(DBACC . '.jurnal', [
+						'tipe'         => $tipe_line,
+						'nomor'        => $Nomor_JV,
+						'tanggal'      => $tgl_line,
+						'no_reff'      => $id_payment_paid,
+						'no_perkiraan' => $coa_line,
+						'keterangan'   => $ket_line,
+						'debet'        => $debit_line,
+						'kredit'       => $kredit_line,
+						'created_on'   => date('Y-m-d H:i:s'),
+						'created_by'   => $this->auth->user_id(),
+					]);
+					if (!$ok) throw new Exception('Insert jurnal GL gagal: ' . json_encode($this->db->error()));
+
+					// 6c) jika COA Hutang Dagang, catat ke tr_kartu_hutang.
+					//     Pada pembayaran hutang berkurang => nilai masuk sebagai debet.
+					if (in_array($coa_line, $coa_hutang_dagang) && ($debit_line > 0 || $kredit_line > 0)) {
+						$ok = $this->db->insert('tr_kartu_hutang', [
+							'tipe'          => $tipe_line,
+							'nomor'         => $Nomor_JV,
+							'tanggal'       => $tgl_line,
+							'no_perkiraan'  => $coa_line,
+							'keterangan'    => $ket_line,
+							'no_reff'       => $id_payment_paid,
+							'debet'         => $debit_line,
+							'kredit'        => $kredit_line,
+							'id_supplier'   => $supplier_id,
+							'nama_supplier' => $supplier_name,
+							'no_request'    => $id_payment_paid,
+						]);
+						if (!$ok) throw new Exception('Insert tr_kartu_hutang gagal: ' . json_encode($this->db->error()));
+					}
+
 					$no_jurnal++;
 				}
 
 				$ok = $this->db->insert_batch('tr_jurnal', $arr_jurnal);
 				if (!$ok) throw new Exception('Insert jurnal gagal: ' . json_encode($this->db->error()));
+
+				// 6d) header jurnal GL (japh) 1x
+				$ok = $this->db->insert(DBACC . '.japh', [
+					'nomor'      => $Nomor_JV,
+					'tgl'        => $tgl_bayar,
+					'jml'        => $total_debit_jurnal,
+					'kdcab'      => '101',
+					'jenis_reff' => 'BUK',
+					'no_reff'    => $id_payment_paid,
+					'jenis_ap'   => 'V',
+					'note'       => 'Payment ' . $id_payment_paid,
+					'user_id'    => $this->auth->user_name(),
+					'ho_valid'   => '',
+					'batal'      => '0',
+				]);
+				if (!$ok) throw new Exception('Insert japh GL gagal: ' . json_encode($this->db->error()));
+
+				// 6e) naikkan counter nomor bukti cabang
+				$this->db->query("UPDATE " . DBACC . ".pastibisa_tb_cabang SET nobuk = nobuk + 1 WHERE nocab = '101'");
 			}
 
 			if ($this->db->trans_status() === FALSE) {
