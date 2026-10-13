@@ -38,7 +38,7 @@ class Warehouse extends Admin_Controller
     {
         $this->template->title('Kartu Stok');
         $this->template->page_icon('fa fa-file');
-        $this->template->set('is_admin', $this->auth->is_admin());
+        $this->template->set('is_admin', $this->auth->is_admin() || has_permission('Warehouse.ViewHarga'));
         $this->template->render('kartu_stok');
     }
 
@@ -57,7 +57,7 @@ class Warehouse extends Admin_Controller
     {
         $this->template->title('Kartu Stok Incoming');
         $this->template->page_icon('fa fa-sign-in');
-        $this->template->set('is_admin', $this->auth->is_admin());
+        $this->template->set('is_admin', $this->auth->is_admin() || has_permission('Warehouse.ViewHarga'));
         $this->template->render('kartu_stok_incoming');
     }
 
@@ -142,7 +142,7 @@ class Warehouse extends Admin_Controller
 
     public function export_excel_kartu_stok()
     {
-        $is_admin = $this->auth->is_admin();
+        $is_admin = $this->auth->is_admin() || has_permission('Warehouse.ViewHarga');
         $start = $this->input->get('start_date', true);
         $end   = $this->input->get('end_date', true);
 
@@ -242,7 +242,7 @@ class Warehouse extends Admin_Controller
 
     public function export_excel_kartu_stok_incoming()
     {
-        $is_admin = $this->auth->is_admin();
+        $is_admin = $this->auth->is_admin() || has_permission('Warehouse.ViewHarga');
         $start = $this->input->get('start_date', true);
         $end   = $this->input->get('end_date', true);
 

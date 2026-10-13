@@ -201,7 +201,7 @@ class Warehouse_model extends BF_Model
         $totalFiltered = $fetch['totalFiltered'];
         $query = $fetch['query'];
 
-        $is_admin = $this->auth->is_admin();
+        $is_admin = $this->auth->is_admin() || has_permission('Warehouse.ViewHarga');
 
         $data = [];
         $urut1 = 1;
@@ -349,7 +349,7 @@ class Warehouse_model extends BF_Model
         $totalFiltered = $fetch['totalFiltered'];
         $query = $fetch['query'];
 
-        $is_admin = $this->auth->is_admin();
+        $is_admin = $this->auth->is_admin() || has_permission('Warehouse.ViewHarga');
 
         $data = [];
         $urut1 = 1;
