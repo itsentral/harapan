@@ -12,48 +12,22 @@ foreach ($results['result_payment'] as $item) {
 	$get_rec_invoice = $this->db->get_where('tr_invoice_po', ['id' => $item->no_doc])->row();
 	$tgl_pengajuan = $item->tanggal;
 
+	// Supplier diambil langsung dari invoice (tr_invoice_po). Ini sumber kebenaran:
+	// nm_supplier/id_supplier sudah dikunci saat invoice dibuat, dan tidak ambigu
+	// seperti penelusuran lewat no_po -> tr_purchase_order (no_surat bisa menunjuk >1 supplier).
 	if (!empty($get_rec_invoice)) {
-		if (strpos($get_rec_invoice->no_po, 'TRS1') !== false) {
-			$arr_no_incoming = str_replace(', ', ',', $get_rec_invoice->no_po);
-			$get_no_po = $this->db
-				->select('a.no_ipp')
-				->from('tr_incoming_check a')
-				->where_in('a.kode_trans', explode(',', $arr_no_incoming))
-				->get()
-				->result();
+		$inv_id_supplier = trim((string) $get_rec_invoice->id_supplier);
+		$inv_nm_supplier = trim((string) $get_rec_invoice->nm_supplier);
 
-			$arr_no_po = [];
-			foreach ($get_no_po as $item_no_po) {
-				$arr_no_po[] = $item_no_po->no_ipp;
-			}
-
-			$arr_no_po = implode(',', $arr_no_po);
-			$arr_no_po = str_replace(', ', ',', $arr_no_po);
-
-			$get_no_surat = $this->db->query("SELECT a.no_surat FROM tr_purchase_order a WHERE a.no_po IN ('" . str_replace(",", "','", $arr_no_po) . "')")->result();
-			foreach ($get_no_surat as $item_no_surat) {
-				$no_po[] = $item_no_surat->no_surat;
-			}
-		} else {
-			$no_po[] = $get_rec_invoice->no_po;
+		if ($inv_id_supplier !== '') {
+			$kode_supplier[$inv_id_supplier] = $inv_id_supplier;
 		}
-	}
-
-	if (!empty($no_po)) {
-		$get_nm_supplier = $this->db
-			->select('b.kode_supplier, b.nama')
-			->from('tr_purchase_order a')
-			->join('new_supplier b', 'b.kode_supplier = a.id_suplier', 'left')
-			->where_in('a.no_surat', $no_po)
-			->group_by('b.kode_supplier')
-			->get()
-			->result();
-		foreach ($get_nm_supplier as $item_supplier) {
-			$kode_supplier[$item_supplier->kode_supplier] = $item_supplier->kode_supplier;
-			$nm_supplier[] = $item_supplier->nama;
+		if ($inv_nm_supplier !== '') {
+			$nm_supplier[] = $inv_nm_supplier;
 		}
 	}
 }
+$nm_supplier = array_values(array_unique($nm_supplier));
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chosen/1.8.7/chosen.min.css" integrity="sha512-yVvxUQV0QESBt1SyZbNJMAwyKvFTLMyXSyBHDO4BG5t7k/Lw34tyqlSDlKIrIENIzCl+RVUNjmCPG+V/GMesRw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <style>
@@ -204,11 +178,6 @@ foreach ($results['result_payment'] as $item) {
 								$arr_no_po = implode(',', $arr_no_po);
 								$arr_no_po = str_replace(', ', ',', $arr_no_po);
 
-								$get_no_surat = $this->db->query("SELECT a.no_surat FROM tr_purchase_order a WHERE a.no_po IN ('" . str_replace(",", "','", $arr_no_po) . "')")->result();
-								foreach ($get_no_surat as $item_no_surat) {
-									$no_po[] = $item_no_surat->no_surat;
-								}
-
 								$get_incoming_check_detail = $this->db
 									->select('a.qty_order, b.hargasatuan, b.persen_disc as item_disc, c.persen_disc as po_disc')
 									->from('tr_incoming_check_detail a')
@@ -230,8 +199,6 @@ foreach ($results['result_payment'] as $item) {
 									$nilai_utuh += ($nilai_after_disc * $item_detail->qty_order);
 								}
 							} else {
-								$no_po[] = $get_rec_invoice->no_po;
-
 								$get_nilai_utuh = $this->db
 									->select('a.hargatotal, a.nilai_disc')
 									->from('tr_purchase_order a')
@@ -245,21 +212,12 @@ foreach ($results['result_payment'] as $item) {
 							}
 						}
 
-						if (!empty($no_po)) {
-							$get_nm_supplier = $this->db
-								->select('b.nama as nm_supplier')
-								->from('tr_purchase_order a')
-								->join('new_supplier b', 'b.kode_supplier = a.id_suplier', 'left')
-								->where_in('a.no_surat', $no_po)
-								->group_by('b.nama')
-								->get()
-								->result();
-							foreach ($get_nm_supplier as $item_supplier) {
-								$nm_supplier[] = $item_supplier->nm_supplier;
-							}
+						// Supplier diambil langsung dari invoice (sumber kebenaran), bukan dari penelusuran PO.
+						if (!empty($get_rec_invoice) && trim((string) $get_rec_invoice->nm_supplier) !== '') {
+							$nm_supplier[] = trim((string) $get_rec_invoice->nm_supplier);
 						}
 
-						$nm_supplier = implode(', ', $nm_supplier);
+						$nm_supplier = implode(', ', array_unique($nm_supplier));
 
 						if ($ppn != 0) {
 							$nilai_ppn = $ppn;
