@@ -338,11 +338,17 @@ class Report_penagihan extends Admin_Controller
     private function hitung_rekap_target($tahun, $tahun_sekarang, $bulan_sekarang)
     {
         // 1) Bulk-load semua invoice milik sales (department 2)
+        // Kecualikan invoice ber-Term of Payment COD (list_help id=100) dan
+        // Cash Before Delivery (list_help id=95) dari target penagihan.
+        // Term disimpan di penawaran.payment_term (join lewat tr_invoice_sales.id_penawaran).
+        // LEFT JOIN + guard IS NULL supaya invoice tanpa penawaran tetap ikut dihitung.
         $this->db->select('a.id_invoice, c.id as id_sales, a.grand_total, a.jatuh_tempo', false);
         $this->db->from('tr_invoice_sales a');
         $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
         $this->db->join('employee c', 'b.id_karyawan = c.id');
+        $this->db->join('penawaran pn', 'pn.id_penawaran = a.id_penawaran', 'left');
         $this->db->where('c.department', '2');
+        $this->db->where("(pn.payment_term IS NULL OR pn.payment_term NOT IN ('100','95'))", null, false);
         $invoices = $this->db->get()->result_array();
 
         // 2) Bulk-load total pelunasan per invoice per bulan (YYYY-MM).
@@ -534,12 +540,17 @@ class Report_penagihan extends Admin_Controller
         // laporan dianggap ontime, >15 hari dianggap tunggakan.
         $cutoff_ym = date('Y-m', strtotime("$tahun-$bulan-01 -1 month"));
 
+        // Kecualikan invoice ber-Term of Payment COD (list_help id=100) dan
+        // Cash Before Delivery (list_help id=95) dari target komisi,
+        // konsisten dengan hitung_rekap_target().
         $this->db->select('a.id_invoice, a.grand_total, a.jatuh_tempo', false);
         $this->db->from('tr_invoice_sales a');
         $this->db->join('master_customers b', 'a.id_customer = b.id_customer');
         $this->db->join('employee c', 'b.id_karyawan = c.id');
+        $this->db->join('penawaran pn', 'pn.id_penawaran = a.id_penawaran', 'left');
         $this->db->where('c.id', $id_sales);
         $this->db->where('a.jatuh_tempo <=', $akhir_bulan);
+        $this->db->where("(pn.payment_term IS NULL OR pn.payment_term NOT IN ('100','95'))", null, false);
         $invoices_sales = $this->db->get()->result_array();
 
         $bayar_cutoff_map = [];
@@ -732,10 +743,15 @@ class Report_penagihan extends Admin_Controller
             ", false);
             $this->db->from('tr_invoice_sales a');
             $this->db->join('master_customers b', 'a.id_customer = b.id_customer', 'left');
+            $this->db->join('penawaran pn', 'pn.id_penawaran = a.id_penawaran', 'left');
             $this->db->join('tr_invoice_payment_detail pd', 'pd.no_invoice = a.id_invoice', 'left');
             $this->db->join('tr_invoice_payment p', 'p.kd_pembayaran = pd.kd_pembayaran', 'left');
             $this->db->where('b.id_karyawan', $id_sales);
             $this->db->where('a.jatuh_tempo <=', $akhir_bulan);
+            // Kecualikan invoice ber-Term of Payment COD (list_help id=100) dan
+            // Cash Before Delivery (list_help id=95), konsisten dengan
+            // hitung_rekap_target() agar detail cocok dengan angka di report.
+            $this->db->where("(pn.payment_term IS NULL OR pn.payment_term NOT IN ('100','95'))", null, false);
             // Target Penagihan (BEKU): saring berdasarkan sisa piutang pada kondisi cutoff,
             // bukan kolom a.piutang yang live, agar konsisten dengan angka di report.
             $this->db->having('sisa_piutang_cutoff >', 0);
