@@ -361,6 +361,23 @@ class Report_penagihan extends Admin_Controller
             $pay[$pr['no_invoice']][$pr['ym']] = (float)$pr['amt'];
         }
 
+        // 2b) Bulk-load Credit Note dari modul Retur Credit Note (tr_retur) per invoice per bulan.
+        // Modul itu TIDAK mengurangi grand_total/piutang invoice (hanya set is_cancel=2 + jurnal GL),
+        // sehingga sisa piutang harus ikut dikurangi CN ini agar invoice ber-CN tidak keliru
+        // terhitung sebagai target penagihan. CN final = jenis_retur=2 AND status=2.
+        $this->db->select("r.id_invoice, DATE_FORMAT(r.tgl_retur, '%Y-%m') as ym, SUM(r.total_harga) as amt", false);
+        $this->db->from('tr_retur r');
+        $this->db->where('r.jenis_retur', 2);
+        $this->db->where('r.status', 2);
+        $this->db->group_by("r.id_invoice, DATE_FORMAT(r.tgl_retur, '%Y-%m')");
+        $cn_rows = $this->db->get()->result_array();
+
+        // Susun map CN: cn[id_invoice][ym] = jumlah
+        $cn = [];
+        foreach ($cn_rows as $cr) {
+            $cn[$cr['id_invoice']][$cr['ym']] = (float)$cr['amt'];
+        }
+
         // 3) Agregasi target per sales per bulan di PHP
         $rekap_target = [];
         for ($m = 1; $m <= 12; $m++) {
@@ -386,6 +403,15 @@ class Report_penagihan extends Admin_Controller
                 $bayar_cutoff = 0.0;
                 if (!empty($pay[$id])) {
                     foreach ($pay[$id] as $ym => $amt) {
+                        if ($ym <= $cutoff_ym) {
+                            $bayar_cutoff += $amt;
+                        }
+                    }
+                }
+
+                // Total Credit Note (tr_retur) yang terbit sampai cutoff
+                if (!empty($cn[$id])) {
+                    foreach ($cn[$id] as $ym => $amt) {
                         if ($ym <= $cutoff_ym) {
                             $bayar_cutoff += $amt;
                         }
@@ -530,6 +556,22 @@ class Report_penagihan extends Admin_Controller
             $pay_rows = $this->db->get()->result_array();
             foreach ($pay_rows as $pr) {
                 $bayar_cutoff_map[$pr['no_invoice']] = (float)$pr['amt'];
+            }
+
+            // Tambahkan Credit Note dari modul Retur Credit Note (tr_retur) yang terbit s/d cutoff.
+            // Modul CN tidak mengurangi grand_total/piutang invoice, jadi harus dikurangkan di sini
+            // agar invoice ber-CN tidak keliru terhitung sebagai target penagihan.
+            // CN final = jenis_retur=2 AND status=2.
+            $this->db->select('r.id_invoice, SUM(r.total_harga) as amt', false);
+            $this->db->from('tr_retur r');
+            $this->db->where_in('r.id_invoice', $invoice_ids);
+            $this->db->where('r.jenis_retur', 2);
+            $this->db->where('r.status', 2);
+            $this->db->where("DATE_FORMAT(r.tgl_retur, '%Y-%m') <= '$cutoff_ym'", null, false);
+            $this->db->group_by('r.id_invoice');
+            $cn_rows = $this->db->get()->result_array();
+            foreach ($cn_rows as $cr) {
+                $bayar_cutoff_map[$cr['id_invoice']] = ($bayar_cutoff_map[$cr['id_invoice']] ?? 0.0) + (float)$cr['amt'];
             }
         }
 
@@ -679,6 +721,13 @@ class Report_penagihan extends Admin_Controller
                         WHERE pd2.no_invoice = a.id_invoice
                         AND p2.tgl_pembayaran <= '$cutoff_date'
                     ), 0)
+                    - COALESCE((
+                        SELECT SUM(r2.total_harga)
+                        FROM tr_retur r2
+                        WHERE r2.id_invoice = a.id_invoice
+                        AND r2.jenis_retur = 2 AND r2.status = 2
+                        AND r2.tgl_retur <= '$cutoff_date'
+                    ), 0)
                 ) as sisa_piutang_cutoff
             ", false);
             $this->db->from('tr_invoice_sales a');
@@ -716,6 +765,13 @@ class Report_penagihan extends Admin_Controller
                         JOIN tr_invoice_payment p2 ON p2.kd_pembayaran = pd2.kd_pembayaran
                         WHERE pd2.no_invoice = a.id_invoice
                         AND p2.tgl_pembayaran <= '$cutoff_date'
+                    ), 0)
+                    - COALESCE((
+                        SELECT SUM(r2.total_harga)
+                        FROM tr_retur r2
+                        WHERE r2.id_invoice = a.id_invoice
+                        AND r2.jenis_retur = 2 AND r2.status = 2
+                        AND r2.tgl_retur <= '$cutoff_date'
                     ), 0)
                 ) as sisa_piutang_cutoff
             ", false);
