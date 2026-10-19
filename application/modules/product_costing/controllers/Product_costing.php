@@ -143,15 +143,25 @@ class Product_costing extends Admin_Controller
             $id_product_costing = $header['id']; // pakai ID yang baru dibuat
         }
 
-        // ✅ Update harga_beli di warehouse_stock
-        if (!empty($header['code_lv4']) && isset($header['harga_beli'])) {
-            $this->db->where('code_lv4', $header['code_lv4']);
-            $this->db->update('warehouse_stock', [
-                'harga_beli' => $header['harga_beli'],
-                'update_by' => $this->auth->user_id(),
-                'update_date' => date('Y-m-d H:i:s')
-            ]);
-        }
+        // ❌ DINONAKTIFKAN (2026-10-14)
+        // Blok di bawah dulu menimpa warehouse_stock.harga_beli dengan harga dari Product Costing
+        // (yang bersumber dari new_inventory_4.price_ref / harga referensi jual). Ini KELIRU karena
+        // warehouse_stock.harga_beli adalah HARGA POKOK PERSEDIAAN (moving average dari incoming),
+        // bukan harga referensi. Overwrite ini menyebabkan costbook Surat Jalan & HPP Invoice ikut
+        // salah (lihat kasus SJ/G/2609/0072, produk P425000233: 11.497,79 tertimpa jadi 13.200).
+        //
+        // Harga pokok persediaan hanya boleh diubah oleh Incoming Check (moving average) dan
+        // Adjustment Stok. Product Costing cukup menyimpan harga jual/referensi di tabel
+        // product_costing saja.
+        //
+        // if (!empty($header['code_lv4']) && isset($header['harga_beli'])) {
+        //     $this->db->where('code_lv4', $header['code_lv4']);
+        //     $this->db->update('warehouse_stock', [
+        //         'harga_beli' => $header['harga_beli'],
+        //         'update_by' => $this->auth->user_id(),
+        //         'update_date' => date('Y-m-d H:i:s')
+        //     ]);
+        // }
 
         // Hapus dan simpan ulang kompetitor
         if ($is_update) {
