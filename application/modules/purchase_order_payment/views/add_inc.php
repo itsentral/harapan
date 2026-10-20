@@ -79,7 +79,7 @@
     <div class="col-md-6">
         <div class="form-group">
             <label for="">Total Invoice</label>
-            <input type="text" name="total_invoice" id="" class="form-control form-control-sm text-right total_invoice auto_num" value="<?= number_format($results['nilai_req_payment']) ?>" required>
+            <input type="text" name="total_invoice" id="" class="form-control form-control-sm text-right total_invoice auto_num" value="<?= number_format($results['nilai_req_payment'], 2) ?>" required>
         </div>
     </div>
     <div class="col-md-6">
@@ -329,7 +329,9 @@
         var total_tagihan = total_invoice_raw - nilai_retur_raw;
         if (total_tagihan < 0) total_tagihan = 0;
 
-        $('.total_tagihan').val(total_tagihan.toLocaleString('id-ID', {minimumFractionDigits:2}));
+        $('.total_tagihan').val(total_tagihan.toLocaleString('id-ID', {
+            minimumFractionDigits: 2
+        }));
     }
 
     // Recalculate saat total_invoice berubah

@@ -355,6 +355,75 @@ class Purchase_order_payment extends Admin_Controller
 		$this->template->render('view_inc');
 	}
 
+	/**
+	 * Normalisasi string angka berformat (dari field autoNumeric / number_format)
+	 * menjadi nilai numeric murni yang aman disimpan ke DB.
+	 *
+	 * Menangani kasus di mana pemisah ribuan bisa berupa koma (default autoNumeric)
+	 * ATAU titik (locale Indonesia), sehingga "709.000" tidak lagi terbaca menjadi 709.
+	 *
+	 * Aturan:
+	 *  - Jika ada koma DAN titik: separator terakhir dianggap desimal, sisanya ribuan.
+	 *  - Jika hanya koma: koma dianggap pemisah ribuan (bawaan autoNumeric) -> dibuang.
+	 *  - Jika hanya titik:
+	 *      * tepat 3 digit setelah titik tunggal -> pemisah ribuan -> dibuang (709.000 => 709000)
+	 *      * selain itu (1, 2, atau >=4 digit) -> dianggap desimal.
+	 *      * lebih dari satu titik -> semua dianggap pemisah ribuan.
+	 */
+	private function clean_number($value)
+	{
+		if ($value === null) {
+			return 0;
+		}
+
+		$s = trim((string) $value);
+		if ($s === '') {
+			return 0;
+		}
+
+		// Tangani tanda negatif
+		$neg = (strpos($s, '-') === 0) ? '-' : '';
+
+		// Sisakan hanya digit, koma, dan titik
+		$s = preg_replace('/[^0-9.,]/', '', $s);
+		if ($s === '') {
+			return 0;
+		}
+
+		$hasComma = strpos($s, ',') !== false;
+		$hasDot   = strpos($s, '.') !== false;
+
+		if ($hasComma && $hasDot) {
+			// Separator yang muncul paling akhir = pemisah desimal
+			if (strrpos($s, ',') > strrpos($s, '.')) {
+				// koma sebagai desimal, titik sebagai ribuan
+				$s = str_replace('.', '', $s);
+				$s = str_replace(',', '.', $s);
+			} else {
+				// titik sebagai desimal, koma sebagai ribuan
+				$s = str_replace(',', '', $s);
+			}
+		} elseif ($hasComma) {
+			// Hanya koma -> pemisah ribuan (bawaan autoNumeric)
+			$s = str_replace(',', '', $s);
+		} elseif ($hasDot) {
+			$dotCount = substr_count($s, '.');
+			if ($dotCount > 1) {
+				// Beberapa titik pasti pemisah ribuan
+				$s = str_replace('.', '', $s);
+			} else {
+				$decimals = strlen(substr(strrchr($s, '.'), 1));
+				if ($decimals === 3) {
+					// Pola ribuan ala Indonesia: 709.000 -> 709000
+					$s = str_replace('.', '', $s);
+				}
+				// selain itu: biarkan titik sebagai desimal
+			}
+		}
+
+		return (float) ($neg . $s);
+	}
+
 	public function save_invoice()
 	{
 		$post = $this->input->post();
@@ -378,7 +447,7 @@ class Purchase_order_payment extends Admin_Controller
 
 		$no_po = $post['no_po'];
 		$no_po1 = $post['nomor_po'];
-		$kurs = str_replace(',', '', $post['kurs']);
+		$kurs = $this->clean_number($post['kurs']);
 
 		$no_invoice = $this->Pr_model->generate_no_invoice();
 
@@ -391,9 +460,9 @@ class Purchase_order_payment extends Admin_Controller
 				'no_po' => $post['no_po'],
 				'curr' => $post['currency'],
 				'invoice_date' => $post['invoice_date'],
-				'value_dp' => str_replace(',', '', $post['value_dp']),
+				'value_dp' => $this->clean_number($post['value_dp']),
 				'invoice_no' => $post['nomor_invoice'],
-				'total_pembelian' => str_replace(',', '', $post['total_pembelian']),
+				'total_pembelian' => $this->clean_number($post['total_pembelian']),
 				'no_faktur_pajak' => $post['nomor_faktur_pajak'],
 				'persen_dp' => $post['persen_dp'],
 				'link_doc' => $link_doc,
@@ -405,10 +474,10 @@ class Purchase_order_payment extends Admin_Controller
 				'bank' => $post['bank'],
 				'no_bank' => $post['no_bank'],
 				'nm_acc_bank' => $post['nm_acc_bank'],
-				'nilai_disc' => str_replace(',', '', $post['nilai_disc']),
-				'nilai_ppn' => str_replace(',', '', $post['nilai_ppn']),
-				'total_invoice' => str_replace(',', '', $post['nilai_ppn']) + str_replace(',', '', $post['total_pembelian']),
-				'kurs' => str_replace(',', '', $post['kurs']),
+				'nilai_disc' => $this->clean_number($post['nilai_disc']),
+				'nilai_ppn' => $this->clean_number($post['nilai_ppn']),
+				'total_invoice' => $this->clean_number($post['nilai_ppn']) + $this->clean_number($post['total_pembelian']),
+				'kurs' => $this->clean_number($post['kurs']),
 				'created_by' => $this->auth->user_id(),
 				'created_date' => date('Y-m-d H:i:s')
 			]);
@@ -434,26 +503,26 @@ class Purchase_order_payment extends Admin_Controller
 				'no_incoming' => $post['nomor_po'],
 				'curr' => $post['currency'],
 				'invoice_date' => $post['invoice_date'],
-				'value_dp' => str_replace(',', '', $post['value_dp']),
+				'value_dp' => $this->clean_number($post['value_dp']),
 				'invoice_no' => $post['nomor_invoice'],
-				'total_pembelian' => str_replace(',', '', $post['total_pembelian']),
+				'total_pembelian' => $this->clean_number($post['total_pembelian']),
 				'no_faktur_pajak' => $post['nomor_faktur_pajak'],
 				'link_doc' => $link_doc,
-				'req_payment_po' => str_replace(',', '', $post['req_payment_po']),
-				'total_invoice' => str_replace(',', '', $post['total_invoice']),
+				'req_payment_po' => $this->clean_number($post['req_payment_po']),
+				'total_invoice' => $this->clean_number($post['total_invoice']),
 				'notes' => $post['notes'],
 				'invoice_date_real' => $post['invoice_date_real'],
 				'tanggal_faktur_pajak' => $post['tanggal_faktur_pajak'],
 				'id_supplier' => $post['kode_supplier'],
 				'nm_supplier' => $post['nama_supplier'],
-				'nilai_ppn' => str_replace(',', '', $post['nilai_ppn']),
-				'nilai_disc' => str_replace(',', '', $post['nilai_disc']),
+				'nilai_ppn' => $this->clean_number($post['nilai_ppn']),
+				'nilai_disc' => $this->clean_number($post['nilai_disc']),
 				'bank' => $post['bank'],
 				'no_bank' => $post['no_bank'],
 				'nm_acc_bank' => $post['nm_acc_bank'],
-				'kurs' => str_replace(',', '', $post['kurs']),
-				'nilai_retur' => str_replace(',', '', isset($post['nilai_retur']) ? $post['nilai_retur'] : '0'),
-				'total_tagihan' => str_replace(',', '', isset($post['total_tagihan']) ? $post['total_tagihan'] : '0'),
+				'kurs' => $this->clean_number($post['kurs']),
+				'nilai_retur' => $this->clean_number(isset($post['nilai_retur']) ? $post['nilai_retur'] : '0'),
+				'total_tagihan' => $this->clean_number(isset($post['total_tagihan']) ? $post['total_tagihan'] : '0'),
 				'id_retur_pembelian' => isset($post['id_retur_pembelian']) ? $post['id_retur_pembelian'] : null,
 				'created_by' => $this->auth->user_id(),
 				'created_date' => date('Y-m-d H:i:s')
@@ -463,7 +532,7 @@ class Purchase_order_payment extends Admin_Controller
 			}
 
 			// Update settlement di tabel retur pembelian jika ada retur yang dipilih
-			$nilai_retur_settle = (float) str_replace(',', '', isset($post['nilai_retur']) ? $post['nilai_retur'] : '0');
+			$nilai_retur_settle = (float) $this->clean_number(isset($post['nilai_retur']) ? $post['nilai_retur'] : '0');
 			$ids_retur_pembelian = isset($post['id_retur_pembelian']) ? $post['id_retur_pembelian'] : '';
 			if ($nilai_retur_settle > 0 && !empty($ids_retur_pembelian)) {
 				$arr_ids = array_filter(explode(',', $ids_retur_pembelian));
@@ -514,7 +583,7 @@ class Purchase_order_payment extends Admin_Controller
 					'created_on' => date('Y-m-d H:i:s'),
 					'approved_by' => $get_users['nm_lengkap'],
 					'approved_on' => date('Y-m-d H:i:s'),
-					'jumlah' => str_replace(',', '', $post['value_dp']),
+					'jumlah' => $this->clean_number($post['value_dp']),
 					'informasi' => 'Pembayaran DP : ' . $no_po . ' (' . $get_supplier->nama . ')',
 					'exp_inv_po' => 1,
 					'bank_id' => $post['bank'],
@@ -532,11 +601,11 @@ class Purchase_order_payment extends Admin_Controller
 					'no_doc' => $no_invoice,
 					'deskripsi' => 'Pembayaran DP : ' . $no_po . ' (' . $get_supplier->nama . ')',
 					'qty' => 1,
-					'harga' => str_replace(',', '', $post['value_dp']),
-					'total_harga' => str_replace(',', '', $post['value_dp']),
+					'harga' => $this->clean_number($post['value_dp']),
+					'total_harga' => $this->clean_number($post['value_dp']),
 					'status' => 0,
 					'keterangan' => 'Pembayaran DP : ' . $no_po . ' (' . $get_supplier->nama . ')',
-					'expense' => str_replace(',', '', $post['value_dp']),
+					'expense' => $this->clean_number($post['value_dp']),
 					'created_by' => $get_users['nm_lengkap'],
 					'created_on' => date('Y-m-d H:i:s')
 				]);
@@ -548,11 +617,11 @@ class Purchase_order_payment extends Admin_Controller
 				if ($post['currency'] == 'IDR') {
 					$kurs  = 1;
 				} else {
-					$kurs  = str_replace(',', '', $post['kurs']);
+					$kurs  = $this->clean_number($post['kurs']);
 				}
 
-				$dpp_dp_idr = (str_replace(',', '', $post['total_pembelian']) * $kurs);
-				$dpp_dp = (str_replace(',', '', $post['total_pembelian']));
+				$dpp_dp_idr = ($this->clean_number($post['total_pembelian']) * $kurs);
+				$dpp_dp = ($this->clean_number($post['total_pembelian']));
 
 				$update_uang_muka = $this->db->update('tr_purchase_order', ['uang_muka_idr' => $dpp_dp_idr], ['no_surat' => $no_po1]);
 				$update_uang_muka1 = $this->db->update('tr_purchase_order', ['uang_muka' => $dpp_dp], ['no_surat' => $no_po1]);
@@ -569,7 +638,7 @@ class Purchase_order_payment extends Admin_Controller
 					'created_on' => date('Y-m-d H:i:s'),
 					'approved_by' => $get_users['nm_lengkap'],
 					'approved_on' => date('Y-m-d H:i:s'),
-					'jumlah' => str_replace(',', '', $post['value_dp']),
+					'jumlah' => $this->clean_number($post['value_dp']),
 					'informasi' => 'Pembayaran Progress : ' . $no_po . ' (' . $get_supplier->nama . ')',
 					'exp_inv_po' => 1,
 					'bank_id' => $post['bank'],
@@ -586,11 +655,11 @@ class Purchase_order_payment extends Admin_Controller
 					'no_doc' => $no_invoice,
 					'deskripsi' => 'Pembayaran Progress : ' . $no_po . ' (' . $get_supplier->nama . ')',
 					'qty' => 1,
-					'harga' => str_replace(',', '', $post['value_dp']),
-					'total_harga' => str_replace(',', '', $post['value_dp']),
+					'harga' => $this->clean_number($post['value_dp']),
+					'total_harga' => $this->clean_number($post['value_dp']),
 					'status' => 0,
 					'keterangan' => 'Pembayaran Progress : ' . $no_po . ' (' . $get_supplier->nama . ')',
-					'expense' => str_replace(',', '', $post['value_dp']),
+					'expense' => $this->clean_number($post['value_dp']),
 					'created_by' => $get_users['nm_lengkap'],
 					'created_on' => date('Y-m-d H:i:s')
 				]);
@@ -602,11 +671,11 @@ class Purchase_order_payment extends Admin_Controller
 				if ($post['currency'] == 'IDR') {
 					$kurs  = 1;
 				} else {
-					$kurs  = str_replace(',', '', $post['kurs']);
+					$kurs  = $this->clean_number($post['kurs']);
 				}
 
-				$dpp_dp_idr = (str_replace(',', '', $post['total_pembelian']) * $kurs);
-				$dpp_dp = (str_replace(',', '', $post['total_pembelian']));
+				$dpp_dp_idr = ($this->clean_number($post['total_pembelian']) * $kurs);
+				$dpp_dp = ($this->clean_number($post['total_pembelian']));
 
 				$update_uang_muka = $this->db->update('tr_purchase_order', ['uang_muka_idr' => $dpp_dp_idr], ['no_surat' => $no_po1]);
 				$update_uang_muka1 = $this->db->update('tr_purchase_order', ['uang_muka' => $dpp_dp], ['no_surat' => $no_po1]);
@@ -623,7 +692,7 @@ class Purchase_order_payment extends Admin_Controller
 					'created_on' => date('Y-m-d H:i:s'),
 					'approved_by' => $get_users['nm_lengkap'],
 					'approved_on' => date('Y-m-d H:i:s'),
-					'jumlah' => str_replace(',', '', $post['value_dp']),
+					'jumlah' => $this->clean_number($post['value_dp']),
 					'informasi' => 'Pembayaran Retensi : ' . $no_po1 . ' (' . $get_supplier->nama . ')',
 					'exp_inv_po' => 1,
 					'bank_id' => $post['bank'],
@@ -640,11 +709,11 @@ class Purchase_order_payment extends Admin_Controller
 					'no_doc' => $no_invoice,
 					'deskripsi' => 'Pembayaran Retensi : ' . $no_po1 . ' (' . $get_supplier->nama . ')',
 					'qty' => 1,
-					'harga' => str_replace(',', '', $post['value_dp']),
-					'total_harga' => str_replace(',', '', $post['value_dp']),
+					'harga' => $this->clean_number($post['value_dp']),
+					'total_harga' => $this->clean_number($post['value_dp']),
 					'status' => 0,
 					'keterangan' => 'Pembayaran Retensi : ' . $no_po1 . ' (' . $get_supplier->nama . ')',
-					'expense' => str_replace(',', '', $post['value_dp']),
+					'expense' => $this->clean_number($post['value_dp']),
 					'created_by' => $get_users['nm_lengkap'],
 					'created_on' => date('Y-m-d H:i:s')
 				]);
@@ -689,7 +758,7 @@ class Purchase_order_payment extends Admin_Controller
 				'created_on' => date('Y-m-d H:i:s'),
 				'approved_by' => $get_users['nm_lengkap'],
 				'approved_on' => date('Y-m-d H:i:s'),
-				'jumlah' => str_replace(',', '', $post['req_payment_po']),
+				'jumlah' => $this->clean_number($post['req_payment_po']),
 				'informasi' => 'Pembayaran PO : ' . $no_po . ' (' . implode(', ', $arr_nm_supplier) . ')',
 				'bank_id' => $post['bank'],
 				'accnumber' => $post['no_bank'],
@@ -707,11 +776,11 @@ class Purchase_order_payment extends Admin_Controller
 				'no_doc' => $no_invoice,
 				'deskripsi' => 'Pembayaran PO : ' . $no_po . ' (' . implode(', ', $arr_nm_supplier) . ')',
 				'qty' => 1,
-				'harga' => str_replace(',', '', $post['req_payment_po']),
-				'total_harga' => str_replace(',', '', $post['req_payment_po']),
+				'harga' => $this->clean_number($post['req_payment_po']),
+				'total_harga' => $this->clean_number($post['req_payment_po']),
 				'status' => 0,
 				'keterangan' => 'Pembayaran PO : ' . $no_po . ' (' . implode(', ', $arr_nm_supplier) . ')',
-				'expense' => str_replace(',', '', $post['req_payment_po']),
+				'expense' => $this->clean_number($post['req_payment_po']),
 				'created_by' => $get_users['nm_lengkap'],
 				'created_on' => date('Y-m-d H:i:s')
 			]);
@@ -770,12 +839,12 @@ class Purchase_order_payment extends Admin_Controller
 				$kurs  = 1;
 				$jenis_jurnal = 'JV001';
 			} else {
-				$kurs  = str_replace(',', '', $post['kurs']);
+				$kurs  = $this->clean_number($post['kurs']);
 				$jenis_jurnal = 'JV004';
 			}
 
-			$total_pembelian = str_replace(',', '', $post['total_pembelian']) * $kurs;
-			$nilai_ppn = str_replace(',', '', $post['nilai_ppn']) * $kurs;
+			$total_pembelian = $this->clean_number($post['total_pembelian']) * $kurs;
+			$nilai_ppn = $this->clean_number($post['nilai_ppn']) * $kurs;
 			$kode_supplier = $get_supplier->kode_supplier;
 			$nama = $get_supplier->nama;
 		} else {
@@ -784,12 +853,12 @@ class Purchase_order_payment extends Admin_Controller
 				$kurs  = 1;
 				$jenis_jurnal = 'JV003';
 			} else {
-				$kurs  = str_replace(',', '', $post['kurs']);
+				$kurs  = $this->clean_number($post['kurs']);
 				$jenis_jurnal = 'JV006';
 			}
 
-			$total_pembelian = str_replace(',', '', $post['total_pembelian']) * $kurs;
-			$nilai_ppn = str_replace(',', '', $post['nilai_ppn']) * $kurs;
+			$total_pembelian = $this->clean_number($post['total_pembelian']) * $kurs;
+			$nilai_ppn = $this->clean_number($post['nilai_ppn']) * $kurs;
 			$kode_supplier = implode(', ', $arr_id_suplier);
 			$nama = implode(', ', $arr_nm_supplier);
 		}
