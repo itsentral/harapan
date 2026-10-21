@@ -349,6 +349,11 @@ class Report_penagihan extends Admin_Controller
         $this->db->join('penawaran pn', 'pn.id_penawaran = a.id_penawaran', 'left');
         $this->db->where('c.department', '2');
         $this->db->where("(pn.payment_term IS NULL OR pn.payment_term NOT IN ('100','95'))", null, false);
+        // Kecualikan invoice yang dibatalkan (is_cancel = 1) dari target penagihan,
+        // konsisten dengan report_piutang & report_debt yang juga menyaring is_cancel.
+        // Invoice is_cancel=1 adalah data lama/injectan yang sudah lunas sehingga tidak
+        // boleh terhitung sebagai target. Guard IS NULL supaya invoice normal tetap ikut.
+        $this->db->where('(a.is_cancel IS NULL OR a.is_cancel <> 1)', null, false);
         $invoices = $this->db->get()->result_array();
 
         // 2) Bulk-load total pelunasan per invoice per bulan (YYYY-MM).
@@ -551,6 +556,9 @@ class Report_penagihan extends Admin_Controller
         $this->db->where('c.id', $id_sales);
         $this->db->where('a.jatuh_tempo <=', $akhir_bulan);
         $this->db->where("(pn.payment_term IS NULL OR pn.payment_term NOT IN ('100','95'))", null, false);
+        // Kecualikan invoice yang dibatalkan (is_cancel = 1), konsisten dengan
+        // hitung_rekap_target() dan report piutang/debt.
+        $this->db->where('(a.is_cancel IS NULL OR a.is_cancel <> 1)', null, false);
         $invoices_sales = $this->db->get()->result_array();
 
         $bayar_cutoff_map = [];
