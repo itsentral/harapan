@@ -5,9 +5,12 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
 ?>
 
 <?php if (isset($mode) && $mode == 'view'): ?>
-<style>
-    .btn-danger[onclick^="DelProduct"], #add-product { display: none !important; }
-</style>
+    <style>
+        .btn-danger[onclick^="DelProduct"],
+        #add-product {
+            display: none !important;
+        }
+    </style>
 <?php endif; ?>
 
 <div class="box box-primary">
@@ -170,7 +173,7 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
                                     <th class="text-center" style="min-width: 160px;">Total Harga Penawaran</th>
                                     <th class="text-center" style="width: 50px;">
                                         <?php if (!isset($mode) || $mode != 'view') :
-                                        echo form_button(array('type' => 'button', 'class' => 'btn btn-sm btn-success', 'value' => 'back', 'content' => 'Add', 'id' => 'add-product'));
+                                            echo form_button(array('type' => 'button', 'class' => 'btn btn-sm btn-success', 'value' => 'back', 'content' => 'Add', 'id' => 'add-product'));
                                         endif; ?>
                                     </th>
                                 </tr>
@@ -616,7 +619,14 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
             const kategoriToko = $selected.data('toko');
             const selectedPaymentTerm = $selected.data('terms');
 
-            $('#payment_term').val(selectedPaymentTerm).trigger('change');
+            // Jika Tipe Bayar masih CASH, Term Of Payment tetap "Cash Before Delivery",
+            // jangan ditimpa payment_term default customer.
+            if ($('#tipe_bayar').val() === 'cash') {
+                const cbdValue = getCashBeforeDeliveryValue();
+                $('#payment_term').val(cbdValue !== '' ? cbdValue : selectedPaymentTerm).trigger('change');
+            } else {
+                $('#payment_term').val(selectedPaymentTerm).trigger('change');
+            }
 
             // Update harga berdasarkan kategori toko
             $('.product-select').each(function() {
@@ -786,6 +796,25 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
         // Trigger penetuan credit limit
         $('#credit_limit, #grand_total, #outstanding').on('input', function() {
             updateCreditStatus();
+        });
+
+        // Atur Term Of Payment otomatis mengikuti Tipe Bayar
+        // - CASH  : paksa ke "Cash Before Delivery"
+        // - Tempo : kembalikan ke payment_term default customer (data-terms)
+        $('#tipe_bayar').change(function() {
+            const tipeBayar = $(this).val();
+
+            if (tipeBayar === 'cash') {
+                // Paksa Term Of Payment ke "Cash Before Delivery"
+                const cbdValue = getCashBeforeDeliveryValue();
+                if (cbdValue !== '') {
+                    $('#payment_term').val(cbdValue).trigger('change');
+                }
+            } else if (tipeBayar === 'tempo') {
+                // Kembalikan ke payment_term default customer yang dipilih
+                const defaultTerm = $('#id_customer').find(':selected').data('terms');
+                $('#payment_term').val(defaultTerm ? defaultTerm : '').trigger('change');
+            }
         });
 
         // Re-cek harga produk saat customer berubah atau tipe bayar berubah
@@ -1301,6 +1330,19 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
 
     function toNumber(val) {
         return parseFloat((val || "0").replace(/[^0-9.-]+/g, '')) || 0;
+    }
+
+    // Cari value option Term Of Payment yang teksnya "Cash Before Delivery"
+    // (tidak hardcode id, agar tetap benar walau id di DB berbeda)
+    function getCashBeforeDeliveryValue() {
+        let cbdValue = '';
+        $('#payment_term option').each(function() {
+            if ($(this).text().trim().toLowerCase() === 'cash before delivery') {
+                cbdValue = $(this).val();
+                return false;
+            }
+        });
+        return cbdValue;
     }
 </script>
 
