@@ -391,4 +391,110 @@ class Product_costing extends Admin_Controller
     {
         $this->product_costing_model->get_json_product_costing();
     }
+
+    public function download_excel()
+    {
+        $this->auth->restrict($this->viewPermission);
+
+        set_time_limit(0);
+        ini_set('memory_limit', '1024M');
+        $this->load->library("PHPExcel");
+
+        $objPHPExcel = new PHPExcel();
+
+        $whiteCenterBold = whiteCenterBold();
+        $mainTitle       = mainTitle();
+        $tableBodyLeft   = tableBodyLeft();
+        $tableBodyRight  = tableBodyRight();
+
+        $sheet = $objPHPExcel->getActiveSheet();
+
+        // Judul
+        $Row     = 1;
+        $NewRow  = $Row + 1;
+        $Col_Akhir = getColsChar(7);
+        $sheet->setCellValue('A' . $Row, "PRODUCT COSTING");
+        $sheet->getStyle('A' . $Row . ':' . $Col_Akhir . $NewRow)->applyFromArray($mainTitle);
+        $sheet->mergeCells('A' . $Row . ':' . $Col_Akhir . $NewRow);
+
+        // Header kolom
+        $headerRow = $NewRow + 2;
+        $headers = array(
+            'A' => '#',
+            'B' => 'PRODUCT TYPE',
+            'C' => 'PRODUCT NAME',
+            'D' => 'PRICE LIST (IDR)',
+            'E' => 'PRICE DIAJUKAN (IDR)',
+            'F' => 'STATUS',
+            'G' => 'REASON',
+        );
+        foreach ($headers as $col => $label) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+            $sheet->setCellValue($col . $headerRow, $label);
+            $sheet->getStyle($col . $headerRow)->applyFromArray($whiteCenterBold);
+        }
+
+        // Data: sumber sama dengan grid (product_costing + new_inventory_1)
+        $dataResult = $this->db
+            ->select('pc.*, ni1.nama AS nama_level1')
+            ->from('product_costing pc')
+            ->join('new_inventory_1 ni1', 'pc.code_lv1 = ni1.code_lv1', 'left')
+            ->order_by('pc.created_at', 'desc')
+            ->get()
+            ->result_array();
+
+        $awal_row = $headerRow;
+        $no = 0;
+        foreach ($dataResult as $vals) {
+            $no++;
+            $awal_row++;
+
+            $status = 'Waiting Approval';
+            if ($vals['status'] == 'A') {
+                $status = 'Approved';
+            } elseif ($vals['status'] == 'R') {
+                $status = 'Rejected';
+            }
+
+            $sheet->setCellValue('A' . $awal_row, $no);
+            $sheet->getStyle('A' . $awal_row)->applyFromArray($tableBodyLeft);
+
+            $sheet->setCellValue('B' . $awal_row, $vals['nama_level1']);
+            $sheet->getStyle('B' . $awal_row)->applyFromArray($tableBodyLeft);
+
+            $sheet->setCellValue('C' . $awal_row, $vals['product_name']);
+            $sheet->getStyle('C' . $awal_row)->applyFromArray($tableBodyLeft);
+
+            $sheet->setCellValue('D' . $awal_row, $vals['price']);
+            $sheet->getStyle('D' . $awal_row)->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('D' . $awal_row)->applyFromArray($tableBodyRight);
+
+            $sheet->setCellValue('E' . $awal_row, $vals['propose_price']);
+            $sheet->getStyle('E' . $awal_row)->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('E' . $awal_row)->applyFromArray($tableBodyRight);
+
+            $sheet->setCellValue('F' . $awal_row, $status);
+            $sheet->getStyle('F' . $awal_row)->applyFromArray($tableBodyLeft);
+
+            $sheet->setCellValue('G' . $awal_row, $vals['reason']);
+            $sheet->getStyle('G' . $awal_row)->applyFromArray($tableBodyLeft);
+        }
+
+        $sheet->setTitle('Product Costing');
+
+        $filename = 'product-costing-' . date('Ymd-His') . '.xlsx';
+        $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
+
+        if (ob_get_length()) {
+            ob_end_clean();
+        }
+        header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
+        header("Cache-Control: no-store, no-cache, must-revalidate");
+        header("Cache-Control: post-check=0, pre-check=0", false);
+        header("Pragma: no-cache");
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        $objWriter->save("php://output");
+        exit;
+    }
 }
