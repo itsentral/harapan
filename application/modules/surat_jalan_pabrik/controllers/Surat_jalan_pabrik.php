@@ -367,6 +367,17 @@ class Surat_jalan_pabrik extends Admin_Controller
 
         $this->db->insert(DBACC . '.javh', $dataJVhead);
 
+        // Helper: ubah string angka format Indonesia ("18.128.485,00") -> float murni.
+        // Dipakai HANYA untuk menghitung selisih pembulatan, tidak mengubah logic insert lama.
+        $toNumber = function ($s) {
+            $s = str_replace('.', '', (string) $s); // buang pemisah ribuan
+            $s = str_replace(',', '.', $s);         // koma desimal -> titik
+            return is_numeric($s) ? (float) $s : 0.0;
+        };
+
+        $sum_debet  = 0.0;
+        $sum_kredit = 0.0;
+
         $types = $this->input->post('type');
         if (is_array($types)) {
             for ($i = 0; $i < count($types); $i++) {
@@ -383,6 +394,44 @@ class Surat_jalan_pabrik extends Admin_Controller
                     'created_on'   => date('Y-m-d H:i:s'),
                 ];
                 $this->db->insert(DBACC . '.jurnal', $datadetail);
+
+                // Akumulasi nilai yang sebenarnya tersimpan (kolom debet/kredit = bigint,
+                // sehingga dibulatkan). Replikasi pembulatan DB untuk hitung selisih.
+                $sum_debet  += round($toNumber($this->input->post('debet')[$i]));
+                $sum_kredit += round($toNumber($this->input->post('kredit')[$i]));
+            }
+
+            // ===== JURNAL PEMBULATAN (balancing entry) =====
+            // Selisih muncul karena tiap COA dibulatkan sendiri-sendiri ke bigint,
+            // sehingga round(a)+round(b) bisa != round(a+b). Tambahkan 1 baris
+            // COA Biaya Pembulatan (7201-01-06) agar total debet = total kredit.
+            $selisih = (int) round($sum_debet - $sum_kredit);
+
+            if ($selisih !== 0) {
+                $abs = abs($selisih);
+
+                if ($selisih > 0) {
+                    // Debet lebih besar -> kekurangan di sisi kredit -> baris masuk KREDIT
+                    $debet_pb  = 0;
+                    $kredit_pb = $abs;
+                } else {
+                    // Kredit lebih besar -> kekurangan di sisi debet -> baris masuk DEBET
+                    $debet_pb  = $abs;
+                    $kredit_pb = 0;
+                }
+
+                $this->db->insert(DBACC . '.jurnal', [
+                    'tipe'         => 'JV',
+                    'nomor'        => $Nomor_JV,
+                    'tanggal'      => $tgl_inv,
+                    'no_perkiraan' => '7201-01-06', // Biaya Pembulatan
+                    'keterangan'   => $keterangan,
+                    'no_reff'      => $no_po,
+                    'debet'        => $debet_pb,
+                    'kredit'       => $kredit_pb,
+                    'created_by'   => $this->auth->user_id(),
+                    'created_on'   => date('Y-m-d H:i:s'),
+                ]);
             }
         }
 
@@ -793,6 +842,17 @@ class Surat_jalan_pabrik extends Admin_Controller
 
         $this->db->insert(DBACC . '.javh', $dataJVhead);
 
+        // Helper: ubah string angka format Indonesia ("18.128.485,00") -> float murni.
+        // Dipakai HANYA untuk menghitung selisih pembulatan, tidak mengubah logic insert lama.
+        $toNumber = function ($s) {
+            $s = str_replace('.', '', (string) $s); // buang pemisah ribuan
+            $s = str_replace(',', '.', $s);         // koma desimal -> titik
+            return is_numeric($s) ? (float) $s : 0.0;
+        };
+
+        $sum_debet  = 0.0;
+        $sum_kredit = 0.0;
+
         $types = $this->input->post('type');
         if (is_array($types)) {
             for ($i = 0; $i < count($types); $i++) {
@@ -809,6 +869,44 @@ class Surat_jalan_pabrik extends Admin_Controller
                     'created_on'   => date('Y-m-d H:i:s'),
                 ];
                 $this->db->insert(DBACC . '.jurnal', $datadetail);
+
+                // Akumulasi nilai yang sebenarnya tersimpan (kolom debet/kredit = bigint,
+                // sehingga dibulatkan). Replikasi pembulatan DB untuk hitung selisih.
+                $sum_debet  += round($toNumber($this->input->post('debet')[$i]));
+                $sum_kredit += round($toNumber($this->input->post('kredit')[$i]));
+            }
+
+            // ===== JURNAL PEMBULATAN (balancing entry) =====
+            // Selisih muncul karena tiap COA dibulatkan sendiri-sendiri ke bigint,
+            // sehingga round(a)+round(b) bisa != round(a+b). Tambahkan 1 baris
+            // COA Biaya Pembulatan (7201-01-06) agar total debet = total kredit.
+            $selisih = (int) round($sum_debet - $sum_kredit);
+
+            if ($selisih !== 0) {
+                $abs = abs($selisih);
+
+                if ($selisih > 0) {
+                    // Debet lebih besar -> kekurangan di sisi kredit -> baris masuk KREDIT
+                    $debet_pb  = 0;
+                    $kredit_pb = $abs;
+                } else {
+                    // Kredit lebih besar -> kekurangan di sisi debet -> baris masuk DEBET
+                    $debet_pb  = $abs;
+                    $kredit_pb = 0;
+                }
+
+                $this->db->insert(DBACC . '.jurnal', [
+                    'tipe'         => 'JV',
+                    'nomor'        => $Nomor_JV,
+                    'tanggal'      => $tgl_inv,
+                    'no_perkiraan' => '7201-01-06', // Biaya Pembulatan
+                    'keterangan'   => $keterangan,
+                    'no_reff'      => $no_po,
+                    'debet'        => $debet_pb,
+                    'kredit'       => $kredit_pb,
+                    'created_by'   => $this->auth->user_id(),
+                    'created_on'   => date('Y-m-d H:i:s'),
+                ]);
             }
         }
 

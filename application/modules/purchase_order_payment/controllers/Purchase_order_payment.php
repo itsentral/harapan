@@ -1056,6 +1056,8 @@ class Purchase_order_payment extends Admin_Controller
 		$Bln	= substr($tanggal, 5, 2);
 		$Thn	= substr($tanggal, 0, 4);
 		$total	= 0;
+		$sum_debet  = 0.0;
+		$sum_kredit = 0.0;
 		$Nomor_JV = $this->Jurnal_model->get_Nomor_Jurnal_Sales('101', $tanggal);
 		foreach ($det_Jurnaltes1 as $vals) {
 			$datadetail = array(
@@ -1074,6 +1076,48 @@ class Purchase_order_payment extends Admin_Controller
 			$insert_jurnal = $this->db->insert(DBACC . '.jurnal', $datadetail);
 			if (!$insert_jurnal) {
 				print_r($this->db->error($insert_jurnal));
+				exit;
+			}
+
+			// Akumulasi nilai yang sebenarnya tersimpan (kolom debet/kredit = bigint,
+			// sehingga dibulatkan). Replikasi pembulatan DB untuk hitung selisih.
+			$sum_debet  += round((float) $vals['debet']);
+			$sum_kredit += round((float) $vals['kredit']);
+		}
+
+		// ===== JURNAL PEMBULATAN (balancing entry) =====
+		// Selisih muncul karena tiap COA/PO dibulatkan sendiri-sendiri ke bigint,
+		// sehingga round(a)+round(b) bisa != round(a+b). Tambahkan 1 baris
+		// COA Biaya Pembulatan (7201-01-06) agar total debet = total kredit.
+		$selisih = (int) round($sum_debet - $sum_kredit);
+
+		if ($selisih !== 0) {
+			$abs = abs($selisih);
+
+			if ($selisih > 0) {
+				// Debet lebih besar -> kekurangan di sisi kredit -> baris masuk KREDIT
+				$debet_pb  = 0;
+				$kredit_pb = $abs;
+			} else {
+				// Kredit lebih besar -> kekurangan di sisi debet -> baris masuk DEBET
+				$debet_pb  = $abs;
+				$kredit_pb = 0;
+			}
+
+			$insert_pembulatan = $this->db->insert(DBACC . '.jurnal', array(
+				'tipe'         => 'JV',
+				'nomor'        => $Nomor_JV,
+				'tanggal'      => $tanggal,
+				'no_perkiraan' => '7201-01-06', // Biaya Pembulatan
+				'keterangan'   => 'Biaya Pembulatan Receive Invoice ' . $no_invoice,
+				'no_reff'      => $post['nomor_invoice'],
+				'debet'        => $debet_pb,
+				'kredit'       => $kredit_pb,
+				'created_by'   => $this->auth->user_id(),
+				'created_on'   => date('Y-m-d H:i:s')
+			));
+			if (!$insert_pembulatan) {
+				print_r($this->db->error($insert_pembulatan));
 				exit;
 			}
 		}
@@ -1107,7 +1151,7 @@ class Purchase_order_payment extends Admin_Controller
 				'no_perkiraan'   => $coaunbill,
 				'keterangan'     => 'Unbil PO ' . $row->no_surat . '; ' . $keterangan . ' dari Incoming ' . $kode_trans,
 				'no_reff'     	 => $row->no_surat,
-				'debet'          => $row->total_harga,
+				'debet'          => round($row->total_harga), // sama dengan debet jurnal unbill (dibulatkan)
 				'kredit'      	 => 0,
 				'id_supplier'    => $kode_supplier,
 				'nama_supplier'  => $nama,
@@ -1128,7 +1172,7 @@ class Purchase_order_payment extends Admin_Controller
 			'keterangan'     => $keterangan,
 			'no_reff'     	 => $kode_trans,
 			'debet'          => 0,
-			'kredit'      	 => $totalap,
+			'kredit'      	 => round($totalap), // sama dengan kredit jurnal hutang (dibulatkan)
 			'id_supplier'    => $kode_supplier,
 			'nama_supplier'  => $nama,
 			'no_request'     => $post['nomor_invoice'],

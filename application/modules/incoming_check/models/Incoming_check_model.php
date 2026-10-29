@@ -993,6 +993,16 @@ class Incoming_check_model extends BF_Model
                 ];
                 $this->db->insert(DBACC . '.javh', $dataJVhead);
 
+                // Helper: string angka jurnal -> float murni (koma = pemisah ribuan),
+                // konsisten dengan nilai yang di-insert ke tabel jurnal.
+                $toNumber = function ($s) {
+                    $s = str_replace(',', '', (string) $s);
+                    return is_numeric($s) ? (float) $s : 0.0;
+                };
+
+                $sum_debet  = 0.0;
+                $sum_kredit = 0.0;
+
                 // ── Insert detail jurnal langsung ke buku besar (DBACC.jurnal) ──
                 for ($i = 0; $i < count($typeArr); $i++) {
                     $datadetail = [
@@ -1008,6 +1018,44 @@ class Incoming_check_model extends BF_Model
                         'created_on'   => date('Y-m-d H:i:s'),
                     ];
                     $this->db->insert(DBACC . '.jurnal', $datadetail);
+
+                    // Akumulasi nilai yang sebenarnya tersimpan (kolom debet/kredit = bigint,
+                    // sehingga dibulatkan). Replikasi pembulatan DB untuk hitung selisih.
+                    $sum_debet  += round($toNumber($debetArr[$i] ?? 0));
+                    $sum_kredit += round($toNumber($kreditArr[$i] ?? 0));
+                }
+
+                // ===== JURNAL PEMBULATAN (balancing entry) =====
+                // Selisih muncul karena tiap COA/PO dibulatkan sendiri-sendiri ke bigint,
+                // sehingga round(a)+round(b) bisa != round(a+b). Tambahkan 1 baris
+                // COA Biaya Pembulatan (7201-01-06) agar total debet = total kredit.
+                $selisih = (int) round($sum_debet - $sum_kredit);
+
+                if ($selisih !== 0) {
+                    $abs = abs($selisih);
+
+                    if ($selisih > 0) {
+                        // Debet lebih besar -> kekurangan di sisi kredit -> baris masuk KREDIT
+                        $debet_pb  = 0;
+                        $kredit_pb = $abs;
+                    } else {
+                        // Kredit lebih besar -> kekurangan di sisi debet -> baris masuk DEBET
+                        $debet_pb  = $abs;
+                        $kredit_pb = 0;
+                    }
+
+                    $this->db->insert(DBACC . '.jurnal', [
+                        'tipe'         => 'JV',
+                        'nomor'        => $Nomor_JV,
+                        'tanggal'      => $tgl_inv,
+                        'no_perkiraan' => '7201-01-06', // Biaya Pembulatan
+                        'keterangan'   => $keterangan,
+                        'no_reff'      => $kode_trans,
+                        'debet'        => $debet_pb,
+                        'kredit'       => $kredit_pb,
+                        'created_by'   => $this->auth->user_id(),
+                        'created_on'   => date('Y-m-d H:i:s'),
+                    ]);
                 }
 
                 $this->db->query("UPDATE " . DBACC . ".pastibisa_tb_cabang SET nomorJC=nomorJC + 1 WHERE nocab='101'");
@@ -1023,7 +1071,7 @@ class Incoming_check_model extends BF_Model
                         'keterangan'    => 'Unbill PO ' . $row->no_surat . ' atas Incoming ' . $kode_trans,
                         'no_reff'       => $row->no_surat,
                         'debet'         => 0,
-                        'kredit'        => $row->total_harga,
+                        'kredit'        => round($row->total_harga), // sama dengan kredit jurnal 2101-01-02 (dibulatkan)
                         'id_supplier'   => $row->id_suplier,
                         'nama_supplier' => $row->nama,
                         'no_request'    => $kode_trans,

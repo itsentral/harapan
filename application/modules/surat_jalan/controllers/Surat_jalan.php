@@ -473,6 +473,24 @@ class Surat_jalan extends Admin_Controller
 
             $this->db->insert(DBACC . '.javh', $dataJVhead);
 
+            // Helper: ubah string angka jurnal -> float murni, KONSISTEN dengan cara
+            // nilai di-insert ke tabel jurnal (str_replace(",", "")).
+            //
+            // Nilai dikirim dari form (number_format JS) memakai KOMA sebagai pemisah
+            // ribuan, mis. "6,065,870". Jadi:
+            //   - buang koma (pemisah ribuan) -> "6065870"
+            //   - titik (jika ada) tetap sebagai pemisah desimal
+            // Helper lama keliru mengira format Indonesia (titik=ribuan, koma=desimal),
+            // sehingga angka berseparator ter-parse jadi 0 dan selisih pembulatan salah
+            // (mis. muncul 674, padahal seharusnya 1).
+            $toNumber = function ($s) {
+                $s = str_replace(',', '', (string) $s); // buang pemisah ribuan (koma)
+                return is_numeric($s) ? (float) $s : 0.0;
+            };
+
+            $sum_debet  = 0.0;
+            $sum_kredit = 0.0;
+
             for ($i = 0; $i < count($this->input->post('type')); $i++) {
                 $tipe = $this->input->post('type')[$i];
                 $perkiraan = $this->input->post('no_coa')[$i];
@@ -491,6 +509,44 @@ class Surat_jalan extends Admin_Controller
                     'created_on'      => date('Y-m-d H:i:s')
                 );
                 $this->db->insert(DBACC . '.jurnal', $datadetail);
+
+                // Akumulasi nilai yang sebenarnya tersimpan (kolom debet/kredit = bigint,
+                // sehingga dibulatkan). Replikasi pembulatan DB untuk hitung selisih.
+                $sum_debet  += round($toNumber($this->input->post('debet')[$i]));
+                $sum_kredit += round($toNumber($this->input->post('kredit')[$i]));
+            }
+
+            // ===== JURNAL PEMBULATAN (balancing entry) =====
+            // Selisih muncul karena tiap COA dibulatkan sendiri-sendiri ke bigint,
+            // sehingga round(a)+round(b) bisa != round(a+b). Tambahkan 1 baris
+            // COA Biaya Pembulatan (7201-01-06) agar total debet = total kredit.
+            $selisih = (int) round($sum_debet - $sum_kredit);
+
+            if ($selisih !== 0) {
+                $abs = abs($selisih);
+
+                if ($selisih > 0) {
+                    // Debet lebih besar -> kekurangan di sisi kredit -> baris masuk KREDIT
+                    $debet_pb  = 0;
+                    $kredit_pb = $abs;
+                } else {
+                    // Kredit lebih besar -> kekurangan di sisi debet -> baris masuk DEBET
+                    $debet_pb  = $abs;
+                    $kredit_pb = 0;
+                }
+
+                $this->db->insert(DBACC . '.jurnal', array(
+                    'tipe'         => 'JV',
+                    'nomor'        => $Nomor_JV,
+                    'tanggal'      => $tgl_inv,
+                    'no_perkiraan' => '7201-01-06', // Biaya Pembulatan
+                    'keterangan'   => $keterangan,
+                    'no_reff'      => $no_po,
+                    'debet'        => $debet_pb,
+                    'kredit'       => $kredit_pb,
+                    'created_by'   => $this->auth->user_id(),
+                    'created_on'   => date('Y-m-d H:i:s')
+                ));
             }
 
             $Qry_Update_Cabang_acc     = "UPDATE " . DBACC . ".pastibisa_tb_cabang SET nomorJC=nomorJC + 1 WHERE nocab='101'";
@@ -1002,6 +1058,24 @@ class Surat_jalan extends Admin_Controller
 
         $this->db->insert(DBACC . '.javh', $dataJVhead);
 
+        // Helper: ubah string angka jurnal -> float murni, KONSISTEN dengan cara
+        // nilai di-insert ke tabel jurnal (str_replace(",", "")).
+        //
+        // Nilai dikirim dari form (number_format JS) memakai KOMA sebagai pemisah
+        // ribuan, mis. "6,065,870". Jadi:
+        //   - buang koma (pemisah ribuan) -> "6065870"
+        //   - titik (jika ada) tetap sebagai pemisah desimal
+        // Helper lama keliru mengira format Indonesia (titik=ribuan, koma=desimal),
+        // sehingga angka berseparator ter-parse jadi 0 dan selisih pembulatan salah
+        // (mis. muncul 674, padahal seharusnya 1).
+        $toNumber = function ($s) {
+            $s = str_replace(',', '', (string) $s); // buang pemisah ribuan (koma)
+            return is_numeric($s) ? (float) $s : 0.0;
+        };
+
+        $sum_debet  = 0.0;
+        $sum_kredit = 0.0;
+
         $types = $this->input->post('type');
         if (is_array($types)) {
             for ($i = 0; $i < count($types); $i++) {
@@ -1018,6 +1092,44 @@ class Surat_jalan extends Admin_Controller
                     'created_on'   => date('Y-m-d H:i:s')
                 ];
                 $this->db->insert(DBACC . '.jurnal', $datadetail);
+
+                // Akumulasi nilai yang sebenarnya tersimpan (kolom debet/kredit = bigint,
+                // sehingga dibulatkan). Replikasi pembulatan DB untuk hitung selisih.
+                $sum_debet  += round($toNumber($this->input->post('debet')[$i]));
+                $sum_kredit += round($toNumber($this->input->post('kredit')[$i]));
+            }
+
+            // ===== JURNAL PEMBULATAN (balancing entry) =====
+            // Selisih muncul karena tiap COA dibulatkan sendiri-sendiri ke bigint,
+            // sehingga round(a)+round(b) bisa != round(a+b). Tambahkan 1 baris
+            // COA Biaya Pembulatan (7201-01-06) agar total debet = total kredit.
+            $selisih = (int) round($sum_debet - $sum_kredit);
+
+            if ($selisih !== 0) {
+                $abs = abs($selisih);
+
+                if ($selisih > 0) {
+                    // Debet lebih besar -> kekurangan di sisi kredit -> baris masuk KREDIT
+                    $debet_pb  = 0;
+                    $kredit_pb = $abs;
+                } else {
+                    // Kredit lebih besar -> kekurangan di sisi debet -> baris masuk DEBET
+                    $debet_pb  = $abs;
+                    $kredit_pb = 0;
+                }
+
+                $this->db->insert(DBACC . '.jurnal', [
+                    'tipe'         => 'JV',
+                    'nomor'        => $Nomor_JV,
+                    'tanggal'      => $tgl_inv,
+                    'no_perkiraan' => '7201-01-06', // Biaya Pembulatan
+                    'keterangan'   => $keterangan,
+                    'no_reff'      => $no_po,
+                    'debet'        => $debet_pb,
+                    'kredit'       => $kredit_pb,
+                    'created_by'   => $this->auth->user_id(),
+                    'created_on'   => date('Y-m-d H:i:s')
+                ]);
             }
         }
 
