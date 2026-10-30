@@ -26,6 +26,7 @@
  * @author  Bonfire Dev Team
  * @link    http://cibonfire.com/docs/bonfire/bonfire_models
  */
+#[\AllowDynamicProperties]
 class BF_Model extends CI_Model
 {
     /** @var string Error messagess that can be used in UI error reporting. */

@@ -1,5 +1,6 @@
 <?php defined('BASEPATH') || exit('No direct script access allowed');
 
+#[\AllowDynamicProperties]
 class Admin_Controller extends Base_Controller
 {
     protected $pager;

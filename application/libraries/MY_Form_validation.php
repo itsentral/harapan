@@ -1,4 +1,5 @@
 <?php (defined('BASEPATH')) OR exit('No direct script access allowed');
+#[\AllowDynamicProperties]
 class MY_Form_validation extends CI_Form_validation {
 
 	/**

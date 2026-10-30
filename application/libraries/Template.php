@@ -12,6 +12,7 @@
  * @license			http://philsturgeon.co.uk/code/dbad-license
  * @link			http://getsparks.org/packages/template/show
  */
+#[\AllowDynamicProperties]
 class Template
 {
 	private $_module = '';
