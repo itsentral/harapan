@@ -37,7 +37,7 @@ class Penawaran extends Admin_Controller
             ->where('c.deleted', 0)
             ->where('c.deleted_by', null);
 
-        if ($user_id != 7 && $user_id != 94 && $user_id != 95) {
+        if ($user_id != 7 && $user_id != 94 && $user_id != 95 && $user_id != 123) {
             $this->db->where('u.id_user', $user_id);
         }
 
@@ -629,7 +629,7 @@ class Penawaran extends Admin_Controller
         $outstanding = (!empty($row_piutang['outstanding_piutang'])) ? (float)$row_piutang['outstanding_piutang'] : 0;
 
         // B) SO Baru (status A)
-       /* $row_so = $this->db
+        /* $row_so = $this->db
             ->select('SUM(s.grand_total) AS so_baru', false)
             ->from('sales_order s')
             ->where('s.id_customer', $id_customer)
