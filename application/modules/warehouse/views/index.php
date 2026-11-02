@@ -20,6 +20,10 @@
                     <th>Jumlah Stok</th>
                     <th>Stok Booking</th>
                     <th>Stok Available</th>
+                    <?php if (!empty($is_admin)) : ?>
+                        <th>Costbook</th>
+                        <th>Total Nilai Produk</th>
+                    <?php endif; ?>
                 </thead>
                 <tbody></tbody>
             </table>

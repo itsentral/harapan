@@ -63,6 +63,8 @@ class Warehouse_model extends BF_Model
         $totalFiltered = $fetch['totalFiltered'];
         $query = $fetch['query'];
 
+        $is_admin = $this->auth->is_admin() || has_permission('Warehouse.ViewHarga');
+
         $data = [];
         $urut1 = 1;
 
@@ -82,6 +84,14 @@ class Warehouse_model extends BF_Model
             $nestedData[] = "<div align='right'>" . number_format($qty_stock) . "</div>";
             $nestedData[] = "<div align='right'>" . number_format($qty_booking) . "</div>";
             $nestedData[] = "<div align='right'>" . number_format($available) . "</div>";
+
+            // Costbook & Total Nilai Produk hanya untuk admin
+            if ($is_admin) {
+                $costbook    = isset($row['harga_beli']) ? floatval($row['harga_beli']) : 0;
+                $total_nilai = $qty_stock * $costbook;
+                $nestedData[] = "<div align='right'>" . number_format($costbook) . "</div>";
+                $nestedData[] = "<div align='right'>" . number_format($total_nilai) . "</div>";
+            }
 
             $data[] = $nestedData;
             $urut1++;

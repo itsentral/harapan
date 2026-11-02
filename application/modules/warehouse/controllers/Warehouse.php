@@ -31,6 +31,7 @@ class Warehouse extends Admin_Controller
     {
         $this->template->title('Stock Product');
         $this->template->page_icon('fa fa-cubes');
+        $this->template->set('is_admin', $this->auth->is_admin() || has_permission('Warehouse.ViewHarga'));
         $this->template->render('index');
     }
 
@@ -68,6 +69,8 @@ class Warehouse extends Admin_Controller
 
     public function export_excel()
     {
+        $is_admin = $this->auth->is_admin() || has_permission('Warehouse.ViewHarga');
+
         $this->db->select('
             ws.code_product,
             ws.nm_product,
@@ -75,7 +78,8 @@ class Warehouse extends Admin_Controller
             sp.nama AS unit_packing,
             sm.nama AS unit,
             ws.qty_stock,
-            ws.qty_booking
+            ws.qty_booking,
+            ws.harga_beli
         ');
         $this->db->from('warehouse_stock ws');
         $this->db->join('ms_satuan sm', 'ws.id_unit = sm.id', 'left');
@@ -100,9 +104,13 @@ class Warehouse extends Admin_Controller
         $sheet = $xls->getActiveSheet();
 
         $sheet->setCellValue('A1', 'REPORT STOCK PRODUCT');
-        $sheet->mergeCells('A1:I2');
+        $sheet->mergeCells($is_admin ? 'A1:K2' : 'A1:I2');
 
         $headers = ['A' => '#', 'B' => 'Kode Product', 'C' => 'Nama Product', 'D' => 'Kode Gudang', 'E' => 'Unit Packing', 'F' => 'Unit Measurement', 'G' => 'Jumlah Stok', 'H' => 'Stok Booking', 'I' => 'Stok Available'];
+        if ($is_admin) {
+            $headers['J'] = 'Costbook';
+            $headers['K'] = 'Total Nilai Produk';
+        }
         $rowHeader = 4;
         foreach ($headers as $col => $label) {
             $sheet->setCellValue($col . $rowHeader, $label);
@@ -125,6 +133,12 @@ class Warehouse extends Admin_Controller
             $sheet->setCellValueExplicit('G' . $r, $qty_stock, PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->setCellValueExplicit('H' . $r, $qty_booking, PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->setCellValueExplicit('I' . $r, $available, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            if ($is_admin) {
+                $costbook    = (float) (isset($row->harga_beli) ? $row->harga_beli : 0);
+                $total_nilai = $qty_stock * $costbook;
+                $sheet->setCellValueExplicit('J' . $r, $costbook, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+                $sheet->setCellValueExplicit('K' . $r, $total_nilai, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            }
             $r++;
         }
 
