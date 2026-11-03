@@ -17,6 +17,7 @@ class Invoice_produk extends Admin_Controller
 		$this->load->library(array('upload', 'Image_lib'));
 		$this->load->model('Invoice_produk/Invoice_produk_model');
 		$this->load->model('jurnal_nomor/Jurnal_model');
+		$this->load->model('warehouse_stock/Warehouse_stock_model');
 		$this->template->title('Invoice Produk');
 		$this->template->page_icon('fa fa-money');
 		date_default_timezone_set('Asia/Bangkok');
@@ -635,6 +636,35 @@ class Invoice_produk extends Admin_Controller
 
 			$insert_invoice = $this->db->insert('tr_invoice_sales', $data_insert);
 			$insert_invoice_details = $this->db->insert_batch('tr_invoice_sales_detail', $data_insert_detail);
+
+			// ===== Pindahkan stok: IN-CUSTOMER -> detil invoice =====
+			// Barang sudah masuk invoice: hapus seluruh baris in-customer untuk SJ ini sekaligus.
+			// Ledger dibangun dari snapshot in-customer SEBELUM dihapus agar id_sj/id_sj_detail
+			// tetap presisi (nilai beku costbook ikut terbawa).
+			$incustomer_rows = $this->db
+				->get_where('warehouse_stock_incustomer', ['no_surat_jalan' => $post['id_billing']])
+				->result_array();
+
+			$this->db->delete('warehouse_stock_incustomer', ['no_surat_jalan' => $post['id_billing']]);
+
+			// Ledger: INCUSTOMER -> INVOICED (ref_no = id_invoice)
+			if (!empty($incustomer_rows)) {
+				$arr_mutasi_inv = [];
+				foreach ($incustomer_rows as $ic) {
+					$arr_mutasi_inv[] = [
+						'no_so'          => $ic['no_so'],
+						'no_surat_jalan' => $ic['no_surat_jalan'],
+						'id_sj'          => $ic['id_sj'],
+						'id_sj_detail'   => $ic['id_sj_detail'],
+						'id_product'     => $ic['id_product'],
+						'product'        => $ic['product'],
+						'qty'            => $ic['qty'],
+						'costbook'       => $ic['costbook'],
+						'total_harga'    => $ic['total_harga'],
+					];
+				}
+				$this->Warehouse_stock_model->log_mutasi('INVOICE', 'INCUSTOMER', 'INVOICED', $arr_mutasi_inv, null, $id_invoice);
+			}
 
 			//SYAMSUDIN 29-08-2025 JURNAL
 

@@ -16,7 +16,8 @@ class Surat_jalan extends Admin_Controller
         $this->load->library(array('upload', 'Image_lib'));
         $this->load->model(array(
             'Surat_jalan/surat_jalan_model',
-            'jurnal_nomor/Jurnal_model'
+            'jurnal_nomor/Jurnal_model',
+            'warehouse_stock/Warehouse_stock_model'
         ));
 
         date_default_timezone_set('Asia/Bangkok');
@@ -263,10 +264,17 @@ class Surat_jalan extends Admin_Controller
             $this->db->update('surat_jalan', $ArrHeader, ['id' => $id_sj]);
             $this->db->delete('surat_jalan_detail', ['id_sj' => $id_sj]);
 
+            // Hapus baris in-transit lama SJ ini — akan diisi ulang dengan nilai baru
+            $this->db->delete('warehouse_stock_intransit', ['id_sj' => $id_sj]);
+
             foreach ($ArrDetail as &$row) {
                 $row['id_sj'] = $id_sj;
             }
+            unset($row);
             $this->db->insert_batch('surat_jalan_detail', $ArrDetail);
+
+            // Warehouse stock IN-TRANSIT (barang keluar gudang, menuju customer)
+            $this->_insert_intransit($id_sj, $no_surat_jalan, $post, $tanggal_sekarang, 'UPDATE');
 
             // Update SPK, SO detail, dan warehouse_stock dengan nilai baru
             foreach ($detail as $value) {
@@ -310,7 +318,11 @@ class Surat_jalan extends Admin_Controller
                 $row['no_surat_jalan']  = $no_surat_jalan;
                 $row['id_sj']  = $id_sj;
             }
+            unset($row);
             $this->db->insert_batch('surat_jalan_detail', $ArrDetail);
+
+            // Warehouse stock IN-TRANSIT (barang keluar gudang, menuju customer)
+            $this->_insert_intransit($id_sj, $no_surat_jalan, $post, $tanggal_sekarang);
 
             // Preload stok untuk kartu stok — baca dengan FOR UPDATE agar tidak race condition
             $productIds = array_unique(array_column($detail, 'id_product'));
@@ -567,6 +579,62 @@ class Surat_jalan extends Admin_Controller
         echo json_encode($res);
     }
 
+    /**
+     * Isi warehouse_stock_intransit untuk sebuah SJ + catat ledger mutasi.
+     * Dipanggil setelah surat_jalan_detail tersimpan (INSERT maupun UPDATE).
+     * id_sj_detail diambil presisi dari baris surat_jalan_detail yang baru disimpan.
+     *
+     * @param string $event 'CREATE' (insert SJ baru) atau 'UPDATE' (edit SJ)
+     */
+    private function _insert_intransit($id_sj, $no_surat_jalan, $post, $tanggal_sekarang, $event = 'CREATE')
+    {
+        $sj_detail = $this->db->get_where('surat_jalan_detail', ['id_sj' => $id_sj])->result_array();
+        if (empty($sj_detail)) {
+            return;
+        }
+
+        $arr_intransit = [];
+        $arr_mutasi    = [];
+        foreach ($sj_detail as $d) {
+            $qty      = (float)$d['qty'];
+            $costbook = (float)($d['costbook'] ?? 0);
+
+            $arr_intransit[] = [
+                'tgl_masuk'      => date('Y-m-d', strtotime($post['delivery_date'])),
+                'no_so'          => $post['no_so'],
+                'no_surat_jalan' => $no_surat_jalan,
+                'id_sj'          => $id_sj,
+                'id_sj_detail'   => $d['id'],
+                'id_product'     => $d['id_product'],
+                'product'        => $d['product'],
+                'qty'            => $qty,
+                'costbook'       => $costbook,
+                'total_harga'    => $costbook * $qty,
+                'created_by'     => $this->auth->user_id(),
+                'created_at'     => $tanggal_sekarang,
+            ];
+
+            $arr_mutasi[] = [
+                'no_so'          => $post['no_so'],
+                'no_surat_jalan' => $no_surat_jalan,
+                'id_sj'          => $id_sj,
+                'id_sj_detail'   => $d['id'],
+                'id_product'     => $d['id_product'],
+                'product'        => $d['product'],
+                'qty'            => $qty,
+                'costbook'       => $costbook,
+            ];
+        }
+
+        if (!empty($arr_intransit)) {
+            $this->db->insert_batch('warehouse_stock_intransit', $arr_intransit);
+        }
+
+        // Ledger: NULL -> INTRANSIT (barang keluar gudang, menuju customer)
+        $dari = ($event === 'UPDATE') ? 'INTRANSIT' : null;
+        $this->Warehouse_stock_model->log_mutasi($event, $dari, 'INTRANSIT', $arr_mutasi);
+    }
+
     public function confirm_sj($id)
     {
         // Header SJ
@@ -819,6 +887,21 @@ class Surat_jalan extends Admin_Controller
         // ====== Siapkan batch update surat_jalan_detail & kartu_stok ======
         $ArrDetailBatch = [];
         $arr_kartu_stok = [];
+        $arr_incustomer = [];
+
+        // Sumber tepercaya untuk no_so, product, dan costbook (harga beku saat Save).
+        // Diambil dari DB (bukan POST) agar nilai in-customer konsisten dengan in-transit.
+        $sj_head   = $this->db->select('no_so')->get_where('surat_jalan', ['id' => $id_sj])->row_array();
+        $no_so_sj  = $sj_head['no_so'] ?? ($post['no_so'] ?? null);
+
+        $sj_det_rows = $this->db
+            ->select('id, id_product, product, costbook')
+            ->get_where('surat_jalan_detail', ['id_sj' => $id_sj])
+            ->result_array();
+        $sj_det_map = [];
+        foreach ($sj_det_rows as $r) {
+            $sj_det_map[$r['id']] = $r;
+        }
 
         // Helper rollback cepat
         $fail = function ($msg) {
@@ -874,6 +957,26 @@ class Surat_jalan extends Admin_Controller
             // Flag status
             if ($qty_hilang > 0) $flag_hilang = true;
             if ($qty_retur > 0 || $qty_lebih > 0 || $total !== $qty_delivery) $flag_retur = true;
+
+            // ===== Warehouse stock IN-CUSTOMER (hanya qty_terkirim yang diterima customer) =====
+            if ($qty_terkirim > 0) {
+                $det_src  = $sj_det_map[$id_detail] ?? [];
+                $costbook = (float)($det_src['costbook'] ?? 0);
+                $arr_incustomer[] = [
+                    'tgl_masuk'      => $tgl_diterima,
+                    'no_so'          => $no_so_sj,
+                    'no_surat_jalan' => $no_surat_jalan,
+                    'id_sj'          => $id_sj,
+                    'id_sj_detail'   => $id_detail,
+                    'id_product'     => $id_product,
+                    'product'        => $det_src['product'] ?? ($value['product'] ?? null),
+                    'qty'            => $qty_terkirim,
+                    'costbook'       => $costbook,
+                    'total_harga'    => $costbook * $qty_terkirim,
+                    'created_by'     => $this->auth->user_id(),
+                    'created_at'     => date('Y-m-d H:i:s'),
+                ];
+            }
 
             // ===== Upload bukti retur/hilang per item (tetap bisa, tapi file system tidak ikut rollback) =====
             $reason    = null;
@@ -1024,6 +1127,17 @@ class Surat_jalan extends Admin_Controller
         // insert kartu stok
         if (!empty($arr_kartu_stok)) {
             $this->db->insert_batch('kartu_stok', $arr_kartu_stok);
+        }
+
+        // ===== Pindahkan stok: IN-TRANSIT -> IN-CUSTOMER =====
+        // Barang sudah tiba di customer: hapus seluruh baris in-transit SJ ini,
+        // lalu catat yang benar-benar diterima (qty_terkirim) ke in-customer.
+        $this->db->delete('warehouse_stock_intransit', ['id_sj' => $id_sj]);
+        if (!empty($arr_incustomer)) {
+            $this->db->insert_batch('warehouse_stock_incustomer', $arr_incustomer);
+
+            // Ledger: INTRANSIT -> INCUSTOMER (qty_terkirim)
+            $this->Warehouse_stock_model->log_mutasi('CONFIRM', 'INTRANSIT', 'INCUSTOMER', $arr_incustomer);
         }
 
         // ===== JURNAL =====
