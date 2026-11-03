@@ -13,7 +13,8 @@ $qs = http_build_query([
     'event'      => $event,
 ]);
 
-$events = ['CREATE', 'UPDATE', 'CONFIRM', 'INVOICE'];
+// Event UPDATE sengaja tidak ditampilkan — report hanya alur maju CREATE -> CONFIRM -> INVOICE.
+$events = ['CREATE', 'CONFIRM', 'INVOICE'];
 ?>
 
 <div class="box">
@@ -21,7 +22,7 @@ $events = ['CREATE', 'UPDATE', 'CONFIRM', 'INVOICE'];
         <div class="callout callout-info" style="margin-bottom:10px;">
             <p style="margin:0;">
                 <i class="fa fa-info-circle"></i>
-                Report ini menampilkan <strong>ledger perpindahan stok</strong> antar tahap:
+                Report ini menampilkan <strong>perpindahan stok</strong> antar tahap:
                 <strong>CREATE</strong> (SJ dibuat &rarr; In-Transit),
                 <strong>CONFIRM</strong> (In-Transit &rarr; In-Customer),
                 <strong>INVOICE</strong> (In-Customer &rarr; Invoiced).

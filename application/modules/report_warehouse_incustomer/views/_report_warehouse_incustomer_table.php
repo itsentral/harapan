@@ -23,15 +23,14 @@ if (!empty($rows)) {
     <thead>
         <tr>
             <th>#</th>
-            <th>Tgl Masuk</th>
-            <th>No SO</th>
+            <th>Tgl Surat Jalan</th>
             <th>No Surat Jalan</th>
             <th>Customer</th>
             <th>Product ID</th>
             <th>Product Name</th>
             <th class="text-right">Qty</th>
             <th class="text-right">Cost Book<br>(IDR)</th>
-            <th class="text-right">Total Harga<br>(IDR)</th>
+            <th class="text-right">Total Nilai<br>(IDR)</th>
         </tr>
     </thead>
     <tbody>
@@ -39,8 +38,7 @@ if (!empty($rows)) {
             <?php foreach ($rows as $r) : ?>
                 <tr>
                     <td align="center"><?= $no++; ?></td>
-                    <td><?= !empty($r->tgl_masuk) ? date('d-M-Y', strtotime($r->tgl_masuk)) : '-'; ?></td>
-                    <td><?= htmlspecialchars($r->no_so); ?></td>
+                    <td><?= !empty($r->tgl_surat_jalan) ? date('d-M-Y', strtotime($r->tgl_surat_jalan)) : '-'; ?></td>
                     <td><?= htmlspecialchars($r->no_surat_jalan); ?></td>
                     <td><?= strtoupper(htmlspecialchars((string) $r->name_customer)); ?></td>
                     <td><?= htmlspecialchars((string) $r->id_product); ?></td>
@@ -52,14 +50,14 @@ if (!empty($rows)) {
             <?php endforeach; ?>
         <?php elseif ($for_excel) : ?>
             <tr>
-                <td colspan="10" align="center">Tidak ada data.</td>
+                <td colspan="9" align="center">Tidak ada data.</td>
             </tr>
         <?php endif; ?>
     </tbody>
     <?php if (!empty($rows)) : ?>
         <tfoot>
             <tr>
-                <th colspan="7" style="text-align:right;">TOTAL</th>
+                <th colspan="6" style="text-align:right;">TOTAL</th>
                 <th style="text-align:right;"><?= number_format($sum_qty, 2, ',', '.'); ?></th>
                 <th></th>
                 <th style="text-align:right;"><?= number_format($sum_total, 2, ',', '.'); ?></th>

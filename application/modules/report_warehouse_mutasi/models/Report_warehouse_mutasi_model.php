@@ -42,6 +42,10 @@ class Report_warehouse_mutasi_model extends BF_Model
         $this->db->join('sales_order so', 't.no_so = so.no_so', 'left');
         $this->db->join('master_customers c', 'so.id_customer = c.id_customer', 'left');
 
+        // Sembunyikan event UPDATE dari report (tetap tersimpan di DB untuk audit).
+        // Report hanya menampilkan alur maju: CREATE -> CONFIRM -> INVOICE.
+        $this->db->where('t.event !=', 'UPDATE');
+
         if (!empty($start_date)) {
             $this->db->where('DATE(t.tgl_event) >=', $start_date);
         }

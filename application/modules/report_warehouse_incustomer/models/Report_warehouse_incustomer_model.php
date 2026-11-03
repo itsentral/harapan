@@ -24,8 +24,6 @@ class Report_warehouse_incustomer_model extends BF_Model
     {
         $this->db->select('
             t.id,
-            t.tgl_masuk,
-            t.no_so,
             t.no_surat_jalan,
             t.id_product,
             t.product,
@@ -33,20 +31,23 @@ class Report_warehouse_incustomer_model extends BF_Model
             t.costbook,
             t.total_harga,
             t.created_at,
+            sj.created_at AS tgl_surat_jalan,
             c.name_customer
         ', false);
         $this->db->from('warehouse_stock_incustomer t');
+        $this->db->join('surat_jalan sj', 't.id_sj = sj.id', 'left');
         $this->db->join('sales_order so', 't.no_so = so.no_so', 'left');
         $this->db->join('master_customers c', 'so.id_customer = c.id_customer', 'left');
 
+        // Filter periode berdasarkan tanggal surat jalan dibuat (created_at).
         if (!empty($start_date)) {
-            $this->db->where('t.tgl_masuk >=', $start_date);
+            $this->db->where('DATE(sj.created_at) >=', $start_date);
         }
         if (!empty($end_date)) {
-            $this->db->where('t.tgl_masuk <=', $end_date);
+            $this->db->where('DATE(sj.created_at) <=', $end_date);
         }
 
-        $this->db->order_by('t.tgl_masuk', 'desc');
+        $this->db->order_by('sj.created_at', 'desc');
         $this->db->order_by('t.id', 'desc');
 
         return $this->db->get()->result();

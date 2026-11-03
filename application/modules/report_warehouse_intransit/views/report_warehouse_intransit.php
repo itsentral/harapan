@@ -24,7 +24,7 @@ $qs = http_build_query([
         </div>
         <form method="get" action="<?= base_url('report_warehouse_intransit') ?>" class="form-inline">
             <div class="form-group">
-                <label>Tgl Masuk Dari</label>
+                <label>Tgl Surat Jalan Dari</label>
                 <input type="date" name="start_date" class="form-control" value="<?= htmlspecialchars((string) $start_date) ?>">
             </div>
             <div class="form-group">

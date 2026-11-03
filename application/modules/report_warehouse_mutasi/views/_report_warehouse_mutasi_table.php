@@ -33,14 +33,13 @@ if (!empty($rows)) {
             <th>Event</th>
             <th>Dari</th>
             <th>Ke</th>
-            <th>No SO</th>
             <th>No Surat Jalan</th>
             <th>Customer</th>
             <th>Product ID</th>
             <th>Product Name</th>
             <th class="text-right">Qty</th>
             <th class="text-right">Cost Book<br>(IDR)</th>
-            <th class="text-right">Total Harga<br>(IDR)</th>
+            <th class="text-right">Total Nilai<br>(IDR)</th>
             <th>Ref</th>
         </tr>
     </thead>
@@ -53,7 +52,6 @@ if (!empty($rows)) {
                     <td><?= htmlspecialchars((string) $r->event); ?></td>
                     <td><?= $tahap_label($r->dari_tahap); ?></td>
                     <td><?= $tahap_label($r->ke_tahap); ?></td>
-                    <td><?= htmlspecialchars((string) $r->no_so); ?></td>
                     <td><?= htmlspecialchars((string) $r->no_surat_jalan); ?></td>
                     <td><?= strtoupper(htmlspecialchars((string) $r->name_customer)); ?></td>
                     <td><?= htmlspecialchars((string) $r->id_product); ?></td>
@@ -66,14 +64,14 @@ if (!empty($rows)) {
             <?php endforeach; ?>
         <?php elseif ($for_excel) : ?>
             <tr>
-                <td colspan="14" align="center">Tidak ada data.</td>
+                <td colspan="13" align="center">Tidak ada data.</td>
             </tr>
         <?php endif; ?>
     </tbody>
     <?php if (!empty($rows)) : ?>
         <tfoot>
             <tr>
-                <th colspan="10" style="text-align:right;">TOTAL</th>
+                <th colspan="9" style="text-align:right;">TOTAL</th>
                 <th style="text-align:right;"><?= number_format($sum_qty, 2, ',', '.'); ?></th>
                 <th></th>
                 <th style="text-align:right;"><?= number_format($sum_total, 2, ',', '.'); ?></th>
