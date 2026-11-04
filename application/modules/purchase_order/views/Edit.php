@@ -311,6 +311,7 @@ $ENABLE_DELETE  = has_permission('Purchase_Request.Delete');
 													<tr>
 														<td>  " . $value->nm_material . $value->nm_material1 . "
 																<input type='hidden' id='dt_id_" . $key . "' name='dt[" . $key . "][id]' value='" . $value->id . "'>
+																<input type='hidden' id='dt_id_pr_list_" . $key . "' name='dt[" . $key . "][id_pr_list]' value='" . (isset($value->id_pr_list) ? $value->id_pr_list : '') . "'>
 																<input type='hidden' class='form-control input-sm' id='dt_idpr_" . $key . "' name='dt[" . $key . "][idpr]' value='" . $idpr . "'>
 																<input type='hidden' class='form-control input-sm' id='dt_no_pr_" . $key . "' name='dt[" . $key . "][no_pr]' value='" . $no_pr . "'>
 																<input type='hidden' class='form-control input-sm' id='dt_tipe_pr_" . $key . "' name='dt[" . $key . "][tipe_pr]' value='" . $tipe_pr . "'>

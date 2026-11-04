@@ -322,11 +322,44 @@ $ENABLE_DELETE  = has_permission('Purchase_Request.Delete');
 									// exit;
 									$key = 0;
 
-									foreach ($results['getitemso'] as $value) {
+									// Gabungkan tampilan barang produksi yang sama dari beberapa PR jadi 1 baris.
+									// Penyimpanan tetap per-PR (dipecah lagi di SaveNew lewat idpr_list).
+									$rows = [];
+									$grouped = [];
+									foreach ($results['getitemso'] as $r) {
+										$sudah_po = $this->db->query("SELECT IF(SUM(a.qty) IS NOT NULL, SUM(a.qty), 0) AS qty_all_po FROM dt_trans_po a WHERE a.idpr = '" . $r->id . "'")->row()->qty_all_po;
+										$sisa = $r->propose_purchase - $sudah_po;
 
-										$get_trans_po = $this->db->get_where('dt_trans_po', ['idpr' => $value->id])->num_rows();
+										if ($r->tipe_pr === '' && !empty($r->id_material)) {
+											if (!isset($grouped[$r->id_material])) {
+												$r->qty_sisa = 0;
+												$r->pr_list = [];
+												$grouped[$r->id_material] = $r;
+												$rows[] = $r;
+											}
+											$grouped[$r->id_material]->qty_sisa += $sisa;
+											$grouped[$r->id_material]->pr_list[] = ['id' => $r->id, 'sisa' => $sisa, 'so' => $r->so_number];
+										} else {
+											$r->qty_sisa = $sisa;
+											$r->pr_list = [];
+											$rows[] = $r;
+										}
+									}
 
-										$get_qty_all_po = $this->db->query("SELECT IF(SUM(a.qty) IS NOT NULL, SUM(a.qty), 0) AS qty_all_po FROM dt_trans_po a WHERE a.idpr = '" . $value->id . "'")->row();
+									foreach ($rows as $value) {
+
+										$idpr_list = '';
+										$info_pr = '';
+										if (count($value->pr_list) > 1) {
+											$idpr_items = [];
+											$so_items = [];
+											foreach ($value->pr_list as $pl) {
+												$idpr_items[] = (int) $pl['id'] . ':' . (float) $pl['sisa'];
+												$so_items[] = $pl['so'];
+											}
+											$idpr_list = implode(',', $idpr_items);
+											$info_pr = "<br><small class='text-muted'>" . htmlspecialchars(implode(', ', $so_items)) . "</small>";
+										}
 
 										// echo '<tr><td>' . $value->nm_material . '</td></tr>';
 
@@ -371,8 +404,9 @@ $ENABLE_DELETE  = has_permission('Purchase_Request.Delete');
 													</td>
 													
 													<td>  
-													" . $value->nm_material . $nm_material1 . "
+													" . $value->nm_material . $nm_material1 . $info_pr . "
 														<input type='hidden' class='form-control input-sm' id='dt_idpr_" . $key . "' name='dt[" . $key . "][idpr]' value='" . $value->id . "'>
+														<input type='hidden' id='dt_idpr_list_" . $key . "' name='dt[" . $key . "][idpr_list]' value='" . $idpr_list . "'>
 														<input type='hidden' id='dt_tipe_pr_" . $key . "' name='dt[" . $key . "][tipe_pr]' value='" . $value->tipe_pr . "'>
 														<input type='hidden' class='form-control input-sm' id='dt_no_pr_" . $key . "' name='dt[" . $key . "][no_pr]' value='" . $no_pr . "'>
 														<input type='hidden' class='form-control input-sm' id='dt_idmaterial_" . $key . "' name='dt[" . $key . "][idmaterial]' value='" . $id_material . "'>
@@ -394,7 +428,7 @@ $ENABLE_DELETE  = has_permission('Purchase_Request.Delete');
 													</td>
 												  
 												  	<td><input type='text' class='form-control input-sm' name='dt[" . $key . "][kode_barang]' id='dt_kode_barang_" . $key . "' value='" . $value->code . $value->code1 . "' readonly></td>
-												  	<td><input type='text' class='form-control input-sm text-center' id='dt_pr_" . $key . "' name='dt[" . $key . "][pr]' value='" . ($value->propose_purchase - $get_qty_all_po->qty_all_po)  . "' readonly ></td>
+												  	<td><input type='text' class='form-control input-sm text-center' id='dt_pr_" . $key . "' name='dt[" . $key . "][pr]' value='" . $value->qty_sisa . "' readonly ></td>
 														
 													<td hidden><input type='text' class='form-control input-sm' name='dt[" . $key . "][description]' id='dt_description_" . $key . "' value=''></td>
 												  	<td hidden><input type='hidden' class='form-control input-sm autoNumeric' name='dt[" . $key . "][width]' id='dt_width_" . $key . "'  value='" . $width . "'></td>
@@ -402,7 +436,7 @@ $ENABLE_DELETE  = has_permission('Purchase_Request.Delete');
 													
 													<td>
 														<input type='hidden' class='form-control input-sm autoNumeric' name='dt[" . $key . "][totalweight]' id='dt_totalweight_" . $key . "' value='" . $total_weight . "'  onkeyup='HitAmmount(" . $key . ")'>
-														<input type='text' class='form-control input-sm text-center' id='dt_qty_" . $key . "' name='dt[" . $key . "][qty]' value='" . ($value->propose_purchase - $get_qty_all_po->qty_all_po) . "' onkeyup='HitAmmount(" . $key . ")'>
+														<input type='text' class='form-control input-sm text-center' id='dt_qty_" . $key . "' name='dt[" . $key . "][qty]' value='" . $value->qty_sisa . "' onkeyup='HitAmmount(" . $key . ")'>
 													</td>
 													<td class='text-center'>" . ucfirst($value->unit_measure) . "</td>
 													<td class='text-center'>" . ucfirst($value->packing_unit) . ucfirst($value->packing_unit2) . "</td>

@@ -68,7 +68,10 @@
                     $this->db->join('ms_satuan d', 'd.id = b.id_unit_packing', 'left');
                     $this->db->join('tr_incoming_check_detail e', 'e.id_po_detail = a.id AND e.kode_trans = "' . $kode_trans . '"', 'left');
                     $this->db->where('a.no_po', $header_item->no_po);
-                    $this->db->group_by('b.code_lv4', 'e.kode_trans');
+                    // Satu baris per baris dt_trans_po (bukan per material), supaya barang yang sama
+                    // dari beberapa PR dalam 1 PO tampil lengkap dan bisa diterima per baris.
+                    $this->db->group_by('a.id');
+                    $this->db->order_by('a.id', 'ASC');
                     $result = $this->db->get()->result_array();
 
                     if (!empty($result)) {
@@ -84,14 +87,22 @@
 
                                 $totIn = $valx['qty_order'];
 
-                                $get_qty_ng_oke = $this->db->select('IF(SUM(qty_ng) IS NULL, 0, SUM(qty_ng)) as ttl_qty_ng, IF(SUM(qty_oke) IS NULL, 0, SUM(qty_oke)) as ttl_qty_oke')->get_where('tr_checked_incoming_detail', ['no_ipp' => $valx['no_po'], 'id_material' => $valx['idmaterial']])->row_array();
+                                // Semua hitungan di bawah dilakukan per baris dt_trans_po (id_po_detail / id_detail),
+                                // supaya benar kalau material yang sama ada di lebih dari satu baris dalam 1 PO.
+                                $sub_detail = '(SELECT id FROM tr_incoming_check_detail WHERE id_po_detail = ' . (int) $valx['id'] . ')';
+
+                                $get_qty_ng_oke = $this->db->select('IF(SUM(qty_ng) IS NULL, 0, SUM(qty_ng)) as ttl_qty_ng, IF(SUM(qty_oke) IS NULL, 0, SUM(qty_oke)) as ttl_qty_oke')
+                                    ->where('id_detail IN ' . $sub_detail, null, false)
+                                    ->get('tr_checked_incoming_detail')->row_array();
                                 $ttl_qty_ng = $get_qty_ng_oke['ttl_qty_ng'];
                                 $ttl_qty_oke = $get_qty_ng_oke['ttl_qty_oke'];
 
-                                $get_qty_incoming_check = $this->db->select('IF(SUM(qty_order) IS NULL, 0, SUM(qty_order)) AS ttl_qty_incoming_check')->get_where('tr_incoming_check_detail', ['no_ipp' => $valx['no_po'], 'id_material' => $valx['idmaterial']])->row_array();
+                                $get_qty_incoming_check = $this->db->select('IF(SUM(qty_order) IS NULL, 0, SUM(qty_order)) AS ttl_qty_incoming_check')->get_where('tr_incoming_check_detail', ['id_po_detail' => $valx['id']])->row_array();
 
                                 $ttl_qty_incoming_check = $get_qty_incoming_check['ttl_qty_incoming_check'];
-                                $check_tr_incoming_check = $this->db->select('IF(SUM(a.qty_oke + a.qty_ng) IS NULL, 0, SUM(a.qty_oke + a.qty_ng)) AS ttl_checked_incoming')->get_where('tr_checked_incoming_detail a', ['no_ipp' => $valx['no_po'], 'id_material' => $valx['idmaterial']])->row_array();
+                                $check_tr_incoming_check = $this->db->select('IF(SUM(a.qty_oke + a.qty_ng) IS NULL, 0, SUM(a.qty_oke + a.qty_ng)) AS ttl_checked_incoming')
+                                    ->where('a.id_detail IN ' . $sub_detail, null, false)
+                                    ->get('tr_checked_incoming_detail a')->row_array();
                                 if (!empty($check_tr_incoming_check)) {
                                     if ($check_tr_incoming_check['ttl_checked_incoming'] > 0) {
                                         $ttl_qty_incoming_check = $check_tr_incoming_check['ttl_checked_incoming'];
