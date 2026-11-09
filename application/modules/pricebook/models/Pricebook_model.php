@@ -14,10 +14,40 @@ class Pricebook_model extends BF_Model
     /**
      * Build the JSON response for DataTables.
      */
+    /**
+     * Daftar status yang valid untuk filter aktif/non-aktif.
+     */
+    private function normalize_status($status)
+    {
+        $status = is_string($status) ? strtolower(trim($status)) : '';
+        return in_array($status, ['aktif', 'non_aktif', 'semua'], true) ? $status : 'aktif';
+    }
+
+    /**
+     * Terapkan join + filter status (berdasarkan new_inventory_4.deleted_date)
+     * ke query builder aktif. Dipanggil konsisten di semua blok query.
+     *
+     * - aktif     -> deleted_date IS NULL
+     * - non_aktif -> deleted_date IS NOT NULL
+     * - semua     -> tanpa filter (tetap join agar tidak mengubah jumlah baris)
+     */
+    private function apply_status_filter($status)
+    {
+        $status = $this->normalize_status($status);
+        $this->db->join('new_inventory_4 ni', 'ni.code_lv4 = t.id_material', 'left');
+
+        if ($status === 'aktif') {
+            $this->db->where('ni.deleted_date IS NULL', null, false);
+        } elseif ($status === 'non_aktif') {
+            $this->db->where('ni.deleted_date IS NOT NULL', null, false);
+        }
+    }
+
     public function get_json_pricebook()
     {
         $requestData = $_REQUEST;
         $tanggal = isset($requestData['tanggal']) ? trim($requestData['tanggal']) : null;
+        $status  = isset($requestData['status']) ? $requestData['status'] : 'aktif';
 
         $fetch = $this->get_query_json_pricebook(
             $requestData['search']['value'],
@@ -25,7 +55,8 @@ class Pricebook_model extends BF_Model
             $requestData['order'][0]['dir'],
             $requestData['start'],
             $requestData['length'],
-            $tanggal
+            $tanggal,
+            $status
         );
 
         $totalData     = $fetch['totalData'];
@@ -90,7 +121,8 @@ class Pricebook_model extends BF_Model
         $column_dir = null,
         $limit_start = null,
         $limit_length = null,
-        $tanggal = null
+        $tanggal = null,
+        $status = 'aktif'
     ) {
         $has_tanggal = ($tanggal !== null && $tanggal !== '');
 
@@ -116,6 +148,7 @@ class Pricebook_model extends BF_Model
         // ---- total data
         $this->db->select('t.id_material');
         $this->db->from($table);
+        $this->apply_status_filter($status);
         if ($has_tanggal) {
             $this->db->like('t.tgl_backup', $tanggal);
         }
@@ -125,6 +158,7 @@ class Pricebook_model extends BF_Model
         // ---- total filtered
         $this->db->select('t.id_material');
         $this->db->from($table);
+        $this->apply_status_filter($status);
         if ($has_tanggal) {
             $this->db->like('t.tgl_backup', $tanggal);
         }
@@ -141,6 +175,7 @@ class Pricebook_model extends BF_Model
         // ---- grand total (seluruh data terfilter, bukan hanya halaman aktif)
         $this->db->select('SUM(t.qty_stock * t.harga_beli) AS total_nilai');
         $this->db->from($table);
+        $this->apply_status_filter($status);
         if ($has_tanggal) {
             $this->db->like('t.tgl_backup', $tanggal);
         }
@@ -160,6 +195,7 @@ class Pricebook_model extends BF_Model
         // ---- main query
         $this->db->select('t.id_material, t.nm_product, t.kd_gudang, SUM(t.qty_stock) AS qty, MAX(t.harga_beli) AS costbook, SUM(t.qty_stock * t.harga_beli) AS total_nilai');
         $this->db->from($table);
+        $this->apply_status_filter($status);
         if ($has_tanggal) {
             $this->db->like('t.tgl_backup', $tanggal);
         }
@@ -194,13 +230,14 @@ class Pricebook_model extends BF_Model
      * Total nilai inventory keseluruhan (tanpa filter search/paging).
      * Mengikuti sumber tabel sesuai ada/tidaknya filter tanggal.
      */
-    public function get_total_inventory($tanggal = null)
+    public function get_total_inventory($tanggal = null, $status = 'aktif')
     {
         $has_tanggal = ($tanggal !== null && $tanggal !== '');
         $table = $has_tanggal ? 'warehouse_stock_per_days t' : 'warehouse_stock t';
 
         $this->db->select('SUM(t.qty_stock * t.harga_beli) AS total_nilai');
         $this->db->from($table);
+        $this->apply_status_filter($status);
         if ($has_tanggal) {
             $this->db->like('t.tgl_backup', $tanggal);
         }
@@ -213,13 +250,14 @@ class Pricebook_model extends BF_Model
      * Ambil data pricebook untuk keperluan export (semua baris, tanpa paging).
      * Satu baris per id_material + nm_product + kd_gudang.
      */
-    public function get_data_export($tanggal = null)
+    public function get_data_export($tanggal = null, $status = 'aktif')
     {
         $has_tanggal = ($tanggal !== null && $tanggal !== '');
         $table = $has_tanggal ? 'warehouse_stock_per_days t' : 'warehouse_stock t';
 
         $this->db->select('t.id_material, t.nm_product, t.kd_gudang, SUM(t.qty_stock) AS qty, MAX(t.harga_beli) AS costbook, SUM(t.qty_stock * t.harga_beli) AS total_nilai');
         $this->db->from($table);
+        $this->apply_status_filter($status);
         if ($has_tanggal) {
             $this->db->like('t.tgl_backup', $tanggal);
         }

@@ -318,7 +318,10 @@ class Purchase_order extends Admin_Controller
 			GROUP BY id
 		")->result();
 
-
+		// Barang sama dari beberapa PR digabung jadi 1 baris (tampilan saja).
+		// Saat simpan, SaveEditPO memecahnya lagi per baris lewat id_pr_list.
+		$this->load->helper('po');
+		$getitemso = po_merge_detail_rows($getitemso);
 
 		// $getitemso = $this->db->get()->result();
 
@@ -1673,27 +1676,87 @@ class Purchase_order extends Admin_Controller
 					'tipe'					=> $used['tipe_pr']
 				);
 
-				$insert_dt_trans_po = $this->db->insert('dt_trans_po', $dt);
+				// Baris gabungan (barang sama dari beberapa PR) dipecah lagi per-PR.
+				// Baris biasa hanya punya 1 bagian dengan idpr aslinya.
+				$parts = [];
+				if (!empty($used['idpr_list'])) {
+					foreach (explode(',', $used['idpr_list']) as $item_pr) {
+						$exp = explode(':', $item_pr);
+						if (count($exp) == 2) {
+							$parts[] = ['idpr' => (int) $exp[0], 'sisa' => (float) $exp[1], 'qty' => 0];
+						}
+					}
+				}
+				if (count($parts) < 1) {
+					$parts[] = ['idpr' => $used['idpr'], 'sisa' => null, 'qty' => 0];
+				}
 
-				$dataupdate = [
-					'status_po'				=> 'CLS',
-				];
-
-				if ($valid_qty == 1) {
-					$get_other_po_brg = $this->db->query("SELECT IF(SUM(a.qty) IS NOT NULL, SUM(a.qty), 0) AS other_qty FROM dt_trans_po a WHERE a.idpr = '" . $used['idpr'] . "' AND a.tipe = '" . $used['tipe_pr'] . "'")->row();
-
-					if ($used['tipe_pr'] == 'pr depart') {
-						$get_data_pr = $this->db->query("SELECT IF(qty IS NOT NULL, qty, 0) AS qty_pr FROM rutin_non_planning_detail WHERE id = '" . $used['idpr'] . "'")->row();
-					} else if ($used['tipe_pr'] == 'pr asset') {
-						$get_data_pr = $this->db->query("SELECT IF(rev_qty IS NOT NULL, rev_qty, 0) AS qty_pr FROM asset_planning WHERE id = '" . $used['idpr'] . "'")->row();
+				// Alokasi qty berurutan sampai sisa tiap PR, kelebihan masuk ke PR terakhir
+				$remaining = (float) $qty;
+				$last_index = count($parts) - 1;
+				foreach ($parts as $i => $p) {
+					if ($p['sisa'] === null || $i == $last_index) {
+						$take = $remaining;
 					} else {
-						$get_data_pr = $this->db->query("SELECT IF(propose_purchase IS NOT NULL, propose_purchase, 0) AS qty_pr FROM material_planning_base_on_produksi_detail WHERE id = '" . $used['idpr'] . "'")->row();
+						$take = min($remaining, max($p['sisa'], 0));
+					}
+					$parts[$i]['qty'] = $take;
+					$remaining -= $take;
+				}
+
+				// Buang bagian yang qty-nya 0 (kecuali kalau semuanya 0, sisakan 1)
+				$parts_nonzero = array_values(array_filter($parts, function ($p) {
+					return $p['qty'] > 0;
+				}));
+				if (count($parts_nonzero) > 0) {
+					$parts = $parts_nonzero;
+				} else {
+					$parts = [$parts[0]];
+				}
+
+				$scale_keys = ['totalwidth', 'jumlahharga', 'ppn', 'nilai_disc', 'harga_total'];
+				$allocated = array_fill_keys($scale_keys, 0);
+				$last_part = count($parts) - 1;
+
+				foreach ($parts as $i => $p) {
+					if ($i > 0) {
+						$numb1++;
 					}
 
+					$dt_part = $dt;
+					$dt_part['id_dt_po'] = $code . '-' . $numb1;
+					$dt_part['idpr'] = $p['idpr'];
+					$dt_part['qty'] = $p['qty'];
 
-					$qty_all = ($used['qty'] + $get_other_po_brg->other_qty);
-					if ($get_other_po_brg->other_qty > $get_data_pr->qty_pr) {
-						$valid_qty = 0;
+					if (count($parts) > 1) {
+						foreach ($scale_keys as $sk) {
+							$total_val = (float) $dt[$sk];
+							if ($i == $last_part) {
+								$val = round($total_val - $allocated[$sk], 4);
+							} else {
+								$val = round($total_val * ($p['qty'] / (float) $qty), 4);
+							}
+							$allocated[$sk] += $val;
+							$dt_part[$sk] = $val;
+						}
+					}
+
+					$insert_dt_trans_po = $this->db->insert('dt_trans_po', $dt_part);
+
+					if ($valid_qty == 1) {
+						$get_other_po_brg = $this->db->query("SELECT IF(SUM(a.qty) IS NOT NULL, SUM(a.qty), 0) AS other_qty FROM dt_trans_po a WHERE a.idpr = '" . $p['idpr'] . "' AND a.tipe = '" . $used['tipe_pr'] . "'")->row();
+
+						if ($used['tipe_pr'] == 'pr depart') {
+							$get_data_pr = $this->db->query("SELECT IF(qty IS NOT NULL, qty, 0) AS qty_pr FROM rutin_non_planning_detail WHERE id = '" . $p['idpr'] . "'")->row();
+						} else if ($used['tipe_pr'] == 'pr asset') {
+							$get_data_pr = $this->db->query("SELECT IF(rev_qty IS NOT NULL, rev_qty, 0) AS qty_pr FROM asset_planning WHERE id = '" . $p['idpr'] . "'")->row();
+						} else {
+							$get_data_pr = $this->db->query("SELECT IF(propose_purchase IS NOT NULL, propose_purchase, 0) AS qty_pr FROM material_planning_base_on_produksi_detail WHERE id = '" . $p['idpr'] . "'")->row();
+						}
+
+						if ($get_other_po_brg->other_qty > $get_data_pr->qty_pr) {
+							$valid_qty = 0;
+						}
 					}
 				}
 			}
@@ -1861,6 +1924,76 @@ class Purchase_order extends Admin_Controller
 				'harga_total'			=> $total_harga,
 				'note'					=> $used['note']
 			);
+
+			// Baris gabungan (barang sama dari beberapa PR, lihat po_merge_detail_rows):
+			// id_pr_list berisi pasangan "id_dt_trans_po:idpr". Qty dipecah lagi per baris
+			// secara berurutan sampai qty PR masing-masing, kelebihan masuk ke baris terakhir.
+			$parts = [];
+			if (!empty($used['id_pr_list'])) {
+				foreach (explode(',', $used['id_pr_list']) as $pair) {
+					$exp = explode(':', $pair);
+					if (count($exp) == 2 && (int) $exp[0] > 0) {
+						$parts[] = ['id' => (int) $exp[0], 'idpr' => (int) $exp[1]];
+					}
+				}
+			}
+
+			if (count($parts) > 1) {
+				$remaining = (float) $qty;
+				$last_index = count($parts) - 1;
+				foreach ($parts as $i => $p) {
+					$get_data_pr = $this->db->query("SELECT IF(propose_purchase IS NOT NULL, propose_purchase, 0) AS qty_pr FROM material_planning_base_on_produksi_detail WHERE id = ?", [$p['idpr']])->row();
+
+					// Batas per baris = qty PR dikurangi qty PR itu yang sudah dipakai baris/PO lain,
+					// supaya simpan ulang tanpa perubahan tidak menggeser pembagian antar PR.
+					$get_other = $this->db->query("SELECT IFNULL(SUM(qty), 0) AS other_qty FROM dt_trans_po WHERE idpr = ? AND id <> ? AND (tipe IS NULL OR tipe = '')", [$p['idpr'], $p['id']])->row();
+
+					$qty_pr = ($get_data_pr ? (float) $get_data_pr->qty_pr : 0) - ($get_other ? (float) $get_other->other_qty : 0);
+					$qty_pr = max($qty_pr, 0);
+					$parts[$i]['qty_pr'] = $qty_pr;
+
+					if ($i == $last_index) {
+						$take = max($remaining, 0);
+					} else {
+						$take = min(max($remaining, 0), $qty_pr);
+					}
+					$parts[$i]['qty'] = $take;
+					$remaining -= $take;
+				}
+
+				// Kolom nilai dibagi sesuai porsi qty; baris terakhir mengambil selisih pembulatan
+				$scale = [
+					'jumlahharga' => (float) $dt['jumlahharga'],
+					'ppn'         => (float) $dt['ppn'],
+					'nilai_disc'  => (float) $dt['nilai_disc'],
+					'harga_total' => (float) $dt['harga_total'],
+				];
+				$allocated = array_fill_keys(array_keys($scale), 0);
+
+				foreach ($parts as $i => $p) {
+					$dt_part = $dt;
+					$dt_part['qty'] = $p['qty'];
+
+					foreach ($scale as $field => $total_val) {
+						if ($i == $last_index) {
+							$val = round($total_val - $allocated[$field], 4);
+						} else {
+							$val = ((float) $qty > 0) ? round($total_val * ($p['qty'] / (float) $qty), 4) : 0;
+						}
+						$allocated[$field] += $val;
+						$dt_part[$field] = $val;
+					}
+
+					if ($valid_qty == 1 && $p['qty'] > $p['qty_pr']) {
+						$valid_qty = 0;
+					}
+
+					// Hanya update baris milik PO ini
+					$this->db->update('dt_trans_po', $dt_part, ['id' => $p['id'], 'no_po' => $post['no_po']]);
+				}
+
+				continue;
+			}
 
 			if ($valid_qty == 1) {
 				$get_other_po_brg = $this->db->query("SELECT IF(SUM(a.qty) IS NOT NULL, SUM(a.qty), 0) AS other_qty FROM dt_trans_po a WHERE a.idpr = '" . $used['idpr'] . "' AND a.tipe = '" . $used['tipe_pr'] . "'")->row();
@@ -2223,6 +2356,11 @@ class Purchase_order extends Admin_Controller
 		}
 
 		$no_pr_join = implode(', ', $list_no_pr);
+
+		// Barang sama dari beberapa PR digabung jadi 1 baris di cetakan (tampilan saja).
+		// Dilakukan setelah pengumpulan No PR di atas, supaya semua PR tetap tercantum.
+		$this->load->helper('po');
+		$detail = po_merge_detail_rows($detail);
 
 		// ---------------------------
 		// 5) Summary & Supplier
@@ -3207,7 +3345,7 @@ class Purchase_order extends Admin_Controller
 			WHERE
 				a.so_number IN ('" . str_replace(",", "','", implode(',', $getparam)) . "')
 				AND a.status_app = 'Y'
-			GROUP BY a.id_material
+			GROUP BY a.so_number, a.id_material
 
 			UNION ALL
 
@@ -3534,6 +3672,10 @@ class Purchase_order extends Admin_Controller
 
 			GROUP BY id
 		")->result();
+
+		// Barang sama dari beberapa PR digabung jadi 1 baris (tampilan saja)
+		$this->load->helper('po');
+		$getitemso = po_merge_detail_rows($getitemso);
 
 
 		// $getitemso = $this->db->get()->result();

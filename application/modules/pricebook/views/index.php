@@ -6,7 +6,7 @@
             <div class="box-body">
                 <h4 style="margin-top:0;margin-bottom:10px"><b>Total Inventory</b></h4>
                 <div id="totalInventoryBox"
-                     style="background:#d9edf7;border:1px solid #bce8f1;border-radius:4px;padding:18px 20px;font-size:22px;font-weight:bold;color:#31708f">
+                    style="background:#d9edf7;border:1px solid #bce8f1;border-radius:4px;padding:18px 20px;font-size:22px;font-weight:bold;color:#31708f">
                     0
                 </div>
             </div>
@@ -22,6 +22,14 @@
             </small>
         </span>
         <span class="pull-right">
+            <div class="input-group" style="max-width:220px;display:inline-table;vertical-align:middle">
+                <span class="input-group-addon">Status</span>
+                <select name="status" id="filterStatus" class="form-control">
+                    <option value="aktif" selected>Aktif</option>
+                    <option value="non_aktif">Non-aktif</option>
+                    <option value="semua">Semua</option>
+                </select>
+            </div>
             <div class="input-group" style="max-width:250px;display:inline-table;vertical-align:middle">
                 <span class="input-group-addon">Tanggal</span>
                 <input type="text" name="tanggal" id="filterTanggal" class="form-control datepicker tanggal">
@@ -77,9 +85,15 @@
             loadTotalInventory();
         });
 
+        $('#filterStatus').on('change', function() {
+            DataTables();
+            loadTotalInventory();
+        });
+
         $('#btnExportExcel').on('click', function() {
             var tanggal = $('#filterTanggal').val() || '';
-            window.location.href = siteurl + active_controller + 'export_excel?tanggal=' + encodeURIComponent(tanggal);
+            var status = $('#filterStatus').val() || 'aktif';
+            window.location.href = siteurl + active_controller + 'export_excel?tanggal=' + encodeURIComponent(tanggal) + '&status=' + encodeURIComponent(status);
         });
     });
 
@@ -90,7 +104,8 @@
             type: 'post',
             dataType: 'json',
             data: {
-                tanggal: $('#filterTanggal').val()
+                tanggal: $('#filterTanggal').val(),
+                status: $('#filterStatus').val()
             },
             success: function(res) {
                 $('#totalInventoryBox').text((res && res.totalFmt !== undefined) ? res.totalFmt : '0');
@@ -128,6 +143,7 @@
                 type: "post",
                 data: function(d) {
                     d.tanggal = $('#filterTanggal').val();
+                    d.status = $('#filterStatus').val();
                 },
                 dataSrc: function(json) {
                     var gt = (json && json.grandTotalFmt !== undefined) ? json.grandTotalFmt : '0';

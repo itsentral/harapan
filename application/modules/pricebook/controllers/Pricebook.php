@@ -46,7 +46,8 @@ class Pricebook extends Admin_Controller
     public function total_inventory()
     {
         $tanggal = $this->input->post('tanggal', true);
-        $total   = $this->pricebook_model->get_total_inventory($tanggal);
+        $status  = $this->input->post('status', true);
+        $total   = $this->pricebook_model->get_total_inventory($tanggal, $status);
 
         header('Content-Type: application/json');
         echo json_encode([
@@ -63,7 +64,8 @@ class Pricebook extends Admin_Controller
         $this->auth->restrict($this->viewPermission);
 
         $tanggal = $this->input->get('tanggal', true);
-        $rows    = $this->pricebook_model->get_data_export($tanggal);
+        $status  = $this->input->get('status', true);
+        $rows    = $this->pricebook_model->get_data_export($tanggal, $status);
 
         if (empty($rows)) {
             echo "<script>alert('Data tidak ditemukan'); window.history.back();</script>";

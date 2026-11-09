@@ -417,6 +417,10 @@ class Approval_po extends Admin_Controller
 				a.tipe = 'pr asset'
 		")->result();
 
+    // Barang sama dari beberapa PR digabung jadi 1 baris (tampilan saja, approval tidak mengubah detail)
+    $this->load->helper('po');
+    $getitemso = po_merge_detail_rows($getitemso);
+
 
 
     $aktif = 'active';

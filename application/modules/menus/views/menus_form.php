@@ -67,7 +67,7 @@
                             </div>
                             <select class="form-control input select2 group_menu" name="group_menu" id="group_menu">
                               <option value="">Select An Option(NONE)</option>
-                              <?php for ($i=1; $i<=count($datgroupmenu); $i++){ ?>
+                              <?php for ($i=1; $i<=count($datgroupmenu ?? []); $i++){ ?>
                                 <option value="<?=$i?>" <?=(isset($data->group_menu)&&$i==$data->group_menu)?"selected":""?>><?=($datgroupmenu[$i]=="Back End")?"Show":"Hidden"?></option>
                               <?php } ?>
                             </select>
