@@ -1046,10 +1046,12 @@ class Report_penjualan_model extends BF_Model
         $subQty = 0;
         $subSales = 0;
         $subSalesDpp = 0;
+        $subHpp = 0;
 
         $grandQty = 0;
         $grandSales = 0;
         $grandSalesDpp = 0;
+        $grandHpp = 0;
 
         foreach ($query->result_array() as $row) {
             $cust   = $row['pelanggan'];
@@ -1058,9 +1060,16 @@ class Report_penjualan_model extends BF_Model
             $qty    = (float)$row['qty_total'];
             $sales  = (float)$row['penjualan_total'];
             $salesDpp = (float)$row['penjualan_total_dpp'];
+            $hpp    = (float)$row['hpp_total'];
+
+            // Margin = Revenue (exclude PPn) - HPP; % Margin = Margin / Revenue * 100
+            $margin        = $salesDpp - $hpp;
+            $persen_margin = $salesDpp > 0 ? round(($margin / $salesDpp) * 100) : 0;
 
             // saat customer berganti -> subtotal customer sebelumnya
             if ($currentCust !== null && $cust !== $currentCust) {
+                $subMargin        = $subSalesDpp - $subHpp;
+                $subPersenMargin  = $subSalesDpp > 0 ? round(($subMargin / $subSalesDpp) * 100) : 0;
                 $data[] = [
                     "", // Pelanggan
                     "<b>Total Nama Barang</b>",
@@ -1068,10 +1077,13 @@ class Report_penjualan_model extends BF_Model
                     "<div class='text-right'><b>" . number_format($subQty, 0, ',', '.') . "</b></div>",
                     "<div class='text-right'><b>" . number_format($subSales, 0, ',', '.') . "</b></div>",
                     "<div class='text-right'><b>" . number_format($subSalesDpp, 0, ',', '.') . "</b></div>",
+                    "<div class='text-right'><b>" . number_format($subMargin, 0, ',', '.') . "</b></div>",
+                    "<div class='text-center'><b>{$subPersenMargin}%</b></div>",
                 ];
                 $subQty = 0;
                 $subSales = 0;
                 $subSalesDpp = 0;
+                $subHpp = 0;
             }
 
             $isFirst = ($cust !== $currentCust);
@@ -1080,9 +1092,11 @@ class Report_penjualan_model extends BF_Model
             $subQty += $qty;
             $subSales += $sales;
             $subSalesDpp += $salesDpp;
+            $subHpp += $hpp;
             $grandQty += $qty;
             $grandSales += $sales;
             $grandSalesDpp += $salesDpp;
+            $grandHpp += $hpp;
 
             $data[] = [
                 $isFirst ? "<div class='cell-cust'>{$cust}</div>" : "<div class='cell-cust cell-cust-empty'></div>",
@@ -1091,11 +1105,15 @@ class Report_penjualan_model extends BF_Model
                 "<div class='text-right'>" . number_format($qty, 0, ',', '.') . "</div>",
                 "<div class='text-right'>" . number_format($sales, 0, ',', '.') . "</div>",
                 "<div class='text-right'>" . number_format($salesDpp, 0, ',', '.') . "</div>",
+                "<div class='text-right'>" . number_format($margin, 0, ',', '.') . "</div>",
+                "<div class='text-center'>{$persen_margin}%</div>",
             ];
         }
 
         // subtotal terakhir + grand total
         if ($currentCust !== null) {
+            $subMargin        = $subSalesDpp - $subHpp;
+            $subPersenMargin  = $subSalesDpp > 0 ? round(($subMargin / $subSalesDpp) * 100) : 0;
             $data[] = [
                 "",
                 "<b>Total Nama Barang</b>",
@@ -1103,8 +1121,12 @@ class Report_penjualan_model extends BF_Model
                 "<div class='text-right'><b>" . number_format($subQty, 0, ',', '.') . "</b></div>",
                 "<div class='text-right'><b>" . number_format($subSales, 0, ',', '.') . "</b></div>",
                 "<div class='text-right'><b>" . number_format($subSalesDpp, 0, ',', '.') . "</b></div>",
+                "<div class='text-right'><b>" . number_format($subMargin, 0, ',', '.') . "</b></div>",
+                "<div class='text-center'><b>{$subPersenMargin}%</b></div>",
             ];
 
+            $grandMargin       = $grandSalesDpp - $grandHpp;
+            $grandPersenMargin = $grandSalesDpp > 0 ? round(($grandMargin / $grandSalesDpp) * 100) : 0;
             $data[] = [
                 "<b>Total Pelanggan</b>",
                 "",
@@ -1112,6 +1134,8 @@ class Report_penjualan_model extends BF_Model
                 "<div class='text-right'><b>" . number_format($grandQty, 0, ',', '.') . "</b></div>",
                 "<div class='text-right'><b>" . number_format($grandSales, 0, ',', '.') . "</b></div>",
                 "<div class='text-right'><b>" . number_format($grandSalesDpp, 0, ',', '.') . "</b></div>",
+                "<div class='text-right'><b>" . number_format($grandMargin, 0, ',', '.') . "</b></div>",
+                "<div class='text-center'><b>{$grandPersenMargin}%</b></div>",
             ];
         }
 
@@ -1174,13 +1198,15 @@ class Report_penjualan_model extends BF_Model
 
         // ===== data =====
         // penjualan_total = INCLUDE PPN. penjualan_total_dpp = EXCLUDE PPN (DPP), setara 4101-01-01.
+        // hpp_total = Costbook HPP (d.harga_beli * d.qty), konsisten dgn Report Penjualan vs HPP.
         $this->db->select("
         IFNULL(i.nm_customer,'-') AS pelanggan,
         d.nm_produk AS nama_barang,
         d.uom AS satuan,
         SUM(d.qty) AS qty_total,
         SUM(d.subtotal) AS penjualan_total,
-        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp,
+        SUM(IFNULL(d.harga_beli,0) * d.qty) AS hpp_total
     ", false);
 
         $this->db->from('tr_invoice_sales i');
@@ -1212,14 +1238,15 @@ class Report_penjualan_model extends BF_Model
     public function get_export_customer_per_barang($like_value = NULL, $tgl_dari = NULL, $tgl_sampai = NULL, $id_sales = NULL)
     {
         // Group per nm_customer + nm_produk + uom, konsisten dengan grid.
-        // Export: include PPN + exclude PPN (DPP).
+        // Export: include PPN + exclude PPN (DPP) + HPP (costbook).
         $this->db->select("
         IFNULL(i.nm_customer,'-') AS pelanggan,
         d.nm_produk AS nama_barang,
         d.uom AS satuan,
         SUM(d.qty) AS qty_total,
         SUM(d.subtotal) AS penjualan_total,
-        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp,
+        SUM(IFNULL(d.harga_beli,0) * d.qty) AS hpp_total
     ", false);
 
         $this->db->from('tr_invoice_sales i');

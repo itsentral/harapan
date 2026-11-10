@@ -12,7 +12,7 @@
                 <input type="date" id="tgl_sampai" class="form-control input-sm">
             </div>
             <div class="col-md-2">
-                <label>Sampai</label>
+                <label>Pilih Sales</label>
                 <select name="id_sales" class="form-control input-sm" id="id_sales" required <?= isset($komisi->id_karyawan) ? 'disabled' : '' ?>>
                     <option value="">-- Pilih Sales --</option>
                     <?php foreach ($sales as $s): ?>
@@ -44,6 +44,8 @@
                         <th>Kuantitas</th>
                         <th>Penjualan</th>
                         <th>Revenue (exclude PPn)</th>
+                        <th>Margin</th>
+                        <th>% Margin</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -111,7 +113,7 @@
                 cache: false
             },
             createdRow: function(row, data) {
-                // data = array [pelanggan, nama_barang, satuan, qty, penjualan]
+                // data = array [pelanggan, nama_barang, satuan, qty, penjualan, revenue, margin, %margin]
                 var col0 = $('<div>').html(data[0]).text().trim();
                 var col1 = $('<div>').html(data[1]).text().trim();
 
