@@ -45,7 +45,7 @@ class Incoming_stok extends Admin_Controller
     if ($this->input->post()) {
       $data           = $this->input->post();
       $session        = $this->session->userdata('app_session');
-      $no_po          = $data['no_po'];
+      $no_po          = $data['no_po'] ?? array();
       $no_po = implode(',', $no_po);
       $id_gudang      = $data['id_gudang'];
       $pic            = $data['pic'];
@@ -435,7 +435,7 @@ class Incoming_stok extends Admin_Controller
 
   public function detail_purchasing_order()
   {
-    $no_po       = $this->input->post('no_po');
+    $no_po       = $this->input->post('no_po') ?? array();
     $no_po = implode(',', $no_po);
     $id_gudang   = $this->input->post('id_gudang');
 

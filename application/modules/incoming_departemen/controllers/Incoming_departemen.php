@@ -247,9 +247,9 @@ class Incoming_departemen extends Admin_Controller
 		$data 			= $this->input->post();
 		$data_session	= $this->session->userdata;
 		$no_po			= $data['no_po'];
-		$inventory		= $data['inventory'];
-		$id_dept		= $data['id_dept'];
-		$id_costcenter	= $data['id_costcenter'];
+		$inventory		= $data['inventory'] ?? null;
+		$id_dept		= $data['id_dept'] ?? null;
+		$id_costcenter	= $data['id_costcenter'] ?? null;
 		$pic			= $data['pic'];
 		$note			= $data['note'];
 		$tanggal		= $data['tanggal'];

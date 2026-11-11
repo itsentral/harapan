@@ -1945,14 +1945,15 @@ class Purchase_order_non_product extends Admin_Controller
 		$data['header'] = $this->db->query("SELECT a.*, a.id_suplier, b.nama as nm_supp, b.address as alamat, c.name as country_name, b.contact as nm_pic, b.telp as hp, b.email as email_pic, b.fax FROM tr_purchase_order as a LEFT JOIN material_planning_base_on_produksi x ON x.po_number = a.no_po LEFT JOIN new_supplier b ON b.kode_supplier = a.id_suplier LEFT JOIN country_all c ON c.iso3 = b.id_country WHERE a.no_po = '" . $id . "' ")->result();
 		// print_r($data['header'][0]->tipe);
 		// exit;
-		if ($data['header'][0]->tipe !== '' && $data['header'][0]->tipe !== null) {
-			if ($data['header'][0]->tipe == 'pr depart') {
+		$tipe_po = strtolower(str_replace('_', ' ', trim((string) $data['header'][0]->tipe)));
+		if (in_array($tipe_po, ['pr depart', 'pr asset'], true)) {
+			if ($tipe_po == 'pr depart') {
 				$data['detail']  = $this->db->query("SELECT a.id as id, a.no_po as no_po, a.id_dt_po as id_dt_po, a.idpr as idpr, a.idmaterial as idmaterial, a.namamaterial as namamaterial, a.description as description, a.hargasatuan as hargasatuan, a.jumlahharga as jumlahharga, a.kode_barang as kode_barang, a.ppn as ppn, a.ppn_persen as ppn_persen, a.harga_total as harga_total, a.tipe as tipe, a.keterangan as keterangan, a.namamaterial as nama, '' as code, '1' as konversi, c.code as satuan, c.code as satuan_packing, a.qty as qty FROM dt_trans_po_non_product a 
 				LEFT JOIN rutin_non_planning_detail b ON b.id = a.idpr
 				LEFT JOIN ms_satuan c ON c.id = b.satuan
 				WHERE a.no_po = '" . $id . "' ")->result();
 			}
-			if ($data['header'][0]->tipe == 'pr asset') {
+			if ($tipe_po == 'pr asset') {
 				$data['detail']  = $this->db->query("SELECT a.id as id, a.no_po as no_po, a.id_dt_po as id_dt_po, a.idpr as idpr, a.idmaterial as idmaterial, a.namamaterial as namamaterial, a.description as description, a.hargasatuan as hargasatuan, a.jumlahharga as jumlahharga, a.kode_barang as kode_barang, a.ppn as ppn, a.ppn_persen as ppn_persen, a.harga_total as harga_total, a.tipe as tipe, a.keterangan as keterangan, a.namamaterial as nama, '' as code, '1' as konversi, 'Pcs' as satuan, 'Pcs' as satuan_packing, a.qty as qty FROM dt_trans_po_non_product a 
 				LEFT JOIN asset_planning b ON b.id = a.idpr
 				WHERE a.no_po = '" . $id . "' ")->result();
@@ -1968,7 +1969,7 @@ class Purchase_order_non_product extends Admin_Controller
 				}
 			}
 
-			if ($data['header'][0]->tipe == 'pr depart') {
+			if ($tipe_po == 'pr depart') {
 				$this->db->select('IF(a.nama IS NULL, "", a.nama) as nm_department');
 				$this->db->from('ms_department a');
 				$this->db->join('rutin_non_planning_header b', 'b.id_dept = a.id', 'left');
@@ -1976,7 +1977,7 @@ class Purchase_order_non_product extends Admin_Controller
 				$this->db->where('c.id', $data['detail'][0]->idpr);
 				$get_department = $this->db->get()->row();
 			}
-			if ($data['header'][0]->tipe == 'pr asset') {
+			if ($tipe_po == 'pr asset') {
 				$this->db->select('IF(a.nama IS NULL, "", a.nama) as nm_department');
 				$this->db->from('ms_department a');
 				$this->db->join('asset_planning b', 'b.id_dept = a.id', 'left');
@@ -1986,9 +1987,9 @@ class Purchase_order_non_product extends Admin_Controller
 
 
 
-			$data['nm_department'] = $get_department->nm_department;
+			$data['nm_department'] = $get_department->nm_department ?? '';
 
-			if ($data['header'][0]->tipe == 'pr depart') {
+			if ($tipe_po == 'pr depart') {
 				$this->db->select('IF(a.no_pr IS NULL, "", a.no_pr) as no_pr');
 				$this->db->from('rutin_non_planning_header a');
 				$this->db->join('rutin_non_planning_detail b', 'b.no_pengajuan = a.no_pengajuan', 'left');
@@ -1996,7 +1997,7 @@ class Purchase_order_non_product extends Admin_Controller
 				$this->db->group_by('a.no_pr');
 				$get_pr = $this->db->get()->result();
 			}
-			if ($data['header'][0]->tipe == 'pr asset') {
+			if ($tipe_po == 'pr asset') {
 				$this->db->select('IF(a.no_pr IS NULL, "", a.no_pr) as no_pr');
 				$this->db->from('asset_planning a');
 				$this->db->where_in('a.id', $list_idpr);
@@ -2055,7 +2056,7 @@ class Purchase_order_non_product extends Admin_Controller
 			}
 
 			$get_department = $this->db->select('IF(nama IS NULL, "", nama) as nama')->get_where('ms_department', ['id' => $data['header'][0]->id_dept])->row();
-			$data['nm_department'] = $get_department->nama;
+			$data['nm_department'] = $get_department->nama ?? '';
 
 			$this->db->select('IF(a.no_pr IS NULL, "", a.no_pr) as no_pr');
 			$this->db->from('material_planning_base_on_produksi a');

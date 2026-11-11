@@ -78,7 +78,7 @@ class Budget_periodik extends Admin_Controller
 	public function save_data()
 	{
 
-		$detail_id		= $this->input->post("detail_id");
+		$detail_id		= $this->input->post("detail_id") ?? array();
 		$coa       		= $this->input->post("coa");
 		$nama           = $this->input->post("nama");
 		$tipe  			= $this->input->post("tipe");
@@ -132,7 +132,7 @@ class Budget_periodik extends Admin_Controller
 
 		//alokasi
 		$detail_alokasi	= $this->input->post("detail_alokasi");
-		$kode_detail	= $this->input->post("kode_detail");
+		$kode_detail	= $this->input->post("kode_detail") ?? array();
 		$coa_alokasi	= $this->input->post("coa_alokasi");
 		$nilai_alokasi	= $this->input->post("nilai_alokasi");
 		$this->All_model->dataDelete('ms_budget_rutin_alokasi', array('departement' => $departement));

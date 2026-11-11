@@ -7,7 +7,6 @@ $ENABLE_DELETE  = has_permission('Purchase_Request.Delete');
 <div class="box box-primary">
 	<div class="box-body">
 		<form id="data-form" method="post">
-			<!-- <input type="hidden" name="so_number" value="<?= implode(',', $results['param']) ?>"> -->
 			<input type="hidden" name="no_po" value="<?= $results['header_po']->no_po ?>">
 			<div class="col-sm-12">
 

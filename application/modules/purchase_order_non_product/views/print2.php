@@ -427,7 +427,7 @@
                 </tr>
                 <tr>
                     <td align="right" colspan='8'>Biaya Kirim </td>
-                    <td align="right" style="font-size: 8px;"><?= number_format($header->taxtotal, 2) ?></td>
+                    <td align="right" style="font-size: 8px;"><?= number_format($header->taxtotal ?? 0, 2) ?></td>
 
                 </tr>
 

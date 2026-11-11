@@ -29,7 +29,7 @@ var $TOC_even_footer_value;
 var $TOC_page_selector;
 var $m_TOC; 
 
-function tocontents(&$mpdf) {
+function __construct(&$mpdf) {
 	$this->mpdf = $mpdf;
 	$this->_toc=array();
 	$this->TOCmark = 0;
@@ -138,11 +138,11 @@ function TOC($tocfont='', $tocfontsize=0, $tocindent=0, $resetpagenum='', $pagen
 function insertTOC() {
 	$notocs = 0;
 	if ($this->TOCmark) { $notocs = 1; }
-	$notocs += count($this->m_TOC);
+	$notocs += count((array)$this->m_TOC);
 
 	if ($notocs==0) { return; }
 
-	if (count($this->m_TOC)) { reset($this->m_TOC); }
+	if (count((array)$this->m_TOC)) { reset($this->m_TOC); }
 	$added_toc_pages = 0;
 
 	if ($this->mpdf->ColActive) { $this->mpdf->SetColumns(0); }
@@ -278,7 +278,7 @@ function insertTOC() {
 
 	// 2nd time through to move pages etc.
 	$added_toc_pages = 0;
-	if (count($this->m_TOC)) { reset($this->m_TOC); }
+	if (count((array)$this->m_TOC)) { reset($this->m_TOC); }
 
 	for ($toci = 0; $toci<$notocs; $toci++) {
 		if ($toci==0 && $this->TOCmark) {

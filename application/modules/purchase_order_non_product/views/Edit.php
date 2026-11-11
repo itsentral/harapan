@@ -16,21 +16,6 @@ $ENABLE_DELETE  = has_permission('Purchase_Request.Delete');
 								<h3>Purchase Order</h3>
 							</label></center>
 						<div class="col-sm-12">
-							<!-- <div class="col-sm-6">
-								<div class="form-group row">
-									<div class="col-md-4">
-										<label for="id_customer">Supplier</label>
-									</div>
-									<div class="col-md-8">
-										<select id="id_suplier" name="id_suplier" class='form-control input-md chosen-select' onchange="get_lokasi()" required>
-											<option value="">--Pilih--</option>
-											<?php foreach ($results['supplier'] as $supplier) { ?>
-												<option value="<?= $supplier->id_suplier ?>"><?= strtoupper(strtolower($supplier->name_suplier)) ?></option>
-											<?php } ?>
-										</select>
-									</div>
-								</div>
-							</div> -->
 							<div class="col-sm-6">
 								<div class="form-group row">
 									<div class="col-md-4">
@@ -63,7 +48,7 @@ $ENABLE_DELETE  = has_permission('Purchase_Request.Delete');
 														}
 													}
 												}
-												echo '<option value="' . $item->id . '" ' . $selected . '>' . strtoupper($item->nm_dept . ' - ' . $item->nm_comp) . '</option>';
+												echo '<option value="' . $item->id . '" ' . $selected . '>' . strtoupper($item->nm_dept) . '</option>';
 											}
 											?>
 										</select>

@@ -115,7 +115,7 @@
 						echo '<td class="text-center">' . number_format($item['sum_qty']) . '</td>';
 						echo '<td class="text-center">' . ucfirst($item['pic']) . '</td>';
 						echo '<td class="text-center">' . $item['receiver'] . '</td>';
-						echo '<td class="text-center">' . $list_arr_supplier[$item['id_supplier']]['nama'] . '</td>';
+						echo '<td class="text-center">' . ($list_arr_supplier[$item['id_supplier'] ?? '']['nama'] ?? '-') . '</td>';
 						echo '<td class="text-center">' . $view . ' ' . $print . '</td>';
 						echo '</tr>';
 
