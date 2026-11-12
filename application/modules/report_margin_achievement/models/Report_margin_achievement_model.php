@@ -18,7 +18,7 @@ class Report_margin_achievement_model extends BF_Model
      *
      * Sumber data:
      * - Target Omset       : tabel target_penjualan (kolom dinamis sesuai bulan, mis. jan/feb/...)
-     * - Realisasi Omset    : tr_invoice_sales join master_customers, filter bulan & tahun (delivery_date)
+     * - Realisasi Omset    : tr_invoice_sales join master_customers, filter bulan & tahun (created_on)
      * - Target Margin (%)  : tabel master_margin (id_sales, tahun, bulan)
      * - DPP                : Realisasi Omset (Rp) / 1,11
      * - Margin mentah (dari HPP aktual): Revenue - HPP (Harga Pokok Penjualan / COGS), dihitung per
@@ -74,11 +74,13 @@ class Report_margin_achievement_model extends BF_Model
         // =========================
         // D) Realisasi Omset per sales (dari tr_invoice_sales, filter bulan & tahun)
         // =========================
+        // Tanggal acuan = created_on (tanggal invoice dibuat), sama dengan tanggal jurnal
+        // penjualan & report penjualan lain.
         $this->db->select('c.id_karyawan, SUM(i.grand_total) as realisasi_omset', false);
         $this->db->from('tr_invoice_sales i');
         $this->db->join('master_customers c', 'c.id_customer = i.id_customer', 'left');
-        $this->db->where('YEAR(i.delivery_date)', $tahun);
-        $this->db->where('MONTH(i.delivery_date)', $bulan_no);
+        $this->db->where('YEAR(i.created_on)', $tahun);
+        $this->db->where('MONTH(i.created_on)', $bulan_no);
         $this->db->where('IFNULL(i.is_cancel,0) =', 0, false);
         $this->db->where('c.id_karyawan >', 0);
         $this->db->group_by('c.id_karyawan');
@@ -120,8 +122,8 @@ class Report_margin_achievement_model extends BF_Model
                AND sjd.id_product    = dt.id_produk
             LEFT JOIN sales_order_detail sod
                 ON sod.id = sjd.id_so_det
-            WHERE YEAR(i.delivery_date) = ?
-              AND MONTH(i.delivery_date) = ?
+            WHERE YEAR(i.created_on) = ?
+              AND MONTH(i.created_on) = ?
               AND IFNULL(i.is_cancel, 0) = 0
               AND c.id_karyawan > 0
             GROUP BY c.id_karyawan
