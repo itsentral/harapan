@@ -531,6 +531,11 @@ class Report_penjualan_model extends BF_Model
         $urut = intval($requestData['start']) + 1;
 
         foreach ($query->result_array() as $row) {
+            // Margin = Revenue (exclude PPn) - HPP; % Margin = Margin / Revenue * 100
+            $salesDpp      = (float) $row['penjualan_total_dpp'];
+            $margin        = $salesDpp - (float) $row['hpp_total'];
+            $persen_margin = $salesDpp > 0 ? round(($margin / $salesDpp) * 100) : 0;
+
             $nestedData = [];
 
             $nestedData[] = "<div class='text-center'>{$urut}</div>";
@@ -539,6 +544,8 @@ class Report_penjualan_model extends BF_Model
             $nestedData[] = "<div class='text-right'>" . number_format($row['qty_total']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['penjualan_total']) . "</div>";
             $nestedData[] = "<div class='text-right'>" . number_format($row['penjualan_total_dpp']) . "</div>";
+            $nestedData[] = "<div class='text-right'>" . number_format($margin) . "</div>";
+            $nestedData[] = "<div class='text-center'>{$persen_margin}%</div>";
 
             $data[] = $nestedData;
             $urut++;
@@ -560,6 +567,8 @@ class Report_penjualan_model extends BF_Model
                 "qty_total"           => number_format($grand['qty_total']),
                 "penjualan_total"     => number_format($grand['penjualan_total']),
                 "penjualan_total_dpp" => number_format($grand['penjualan_total_dpp']),
+                "margin_total"        => number_format($grand['margin_total']),
+                "persen_margin"       => round($grand['persen_margin']) . '%',
             ]
         ];
 
@@ -569,13 +578,15 @@ class Report_penjualan_model extends BF_Model
     public function get_query_json_product($like_value = NULL, $column_order = NULL, $column_dir = NULL, $limit_start = NULL, $limit_length = NULL, $tgl_dari = NULL, $tgl_sampai = NULL)
     {
         // Mapping sesuai index kolom tabel di view:
-        // 0=No, 1=Produk, 2=Satuan, 3=Kuantitas, 4=Penjualan, 5=Revenue (exclude PPn)
+        // 0=No, 1=Produk, 2=Satuan, 3=Kuantitas, 4=Penjualan, 5=Revenue (exclude PPn), 6=Margin, 7=% Margin
         $columns_order_by = [
             1 => 'nama_barang',
             2 => 'd.uom',
             3 => 'qty_total',
             4 => 'penjualan_total',
             5 => 'penjualan_total_dpp',
+            6 => 'margin_total',
+            7 => 'persen_margin',
         ];
 
         $apply_date_filter = function () use ($tgl_dari, $tgl_sampai) {
@@ -626,12 +637,18 @@ class Report_penjualan_model extends BF_Model
         // 3) data paginasi (group by nama produk+satuan - historis nama produk)
         // =============================
         // penjualan_total     = INCLUDE PPN. penjualan_total_dpp = EXCLUDE PPN (DPP), setara 4101-01-01.
+        // hpp_total = Costbook HPP (d.harga_beli * d.qty); margin_total = DPP - HPP (dipakai utk sorting).
         $this->db->select("
         d.nm_produk AS nama_barang,
         d.uom AS satuan,
         SUM(d.qty) AS qty_total,
         SUM(d.subtotal) AS penjualan_total,
-        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp,
+        SUM(IFNULL(d.harga_beli,0) * d.qty) AS hpp_total,
+        (ROUND(SUM(d.subtotal) / 1.11) - SUM(IFNULL(d.harga_beli,0) * d.qty)) AS margin_total,
+        IF(ROUND(SUM(d.subtotal) / 1.11) > 0,
+            (ROUND(SUM(d.subtotal) / 1.11) - SUM(IFNULL(d.harga_beli,0) * d.qty)) / ROUND(SUM(d.subtotal) / 1.11) * 100,
+            0) AS persen_margin
     ", false);
 
         $this->db->from('tr_invoice_sales i');
@@ -665,13 +682,14 @@ class Report_penjualan_model extends BF_Model
     {
         // NOTE: rumus & grouping harus identik dengan get_query_json_product()
         // supaya angka di grid (index) dan di export Excel selalu sama.
-        // Export: include PPN + exclude PPN (DPP).
+        // Export: include PPN + exclude PPN (DPP) + HPP (costbook).
         $this->db->select("
         d.nm_produk AS nama_barang,
         d.uom AS satuan,
         SUM(d.qty) AS qty_total,
         SUM(d.subtotal) AS penjualan_total,
-        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
+        ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp,
+        SUM(IFNULL(d.harga_beli,0) * d.qty) AS hpp_total
     ", false);
         $this->db->from('tr_invoice_sales i');
         $this->db->join('tr_invoice_sales_detail d', 'd.id_invoice = i.id_invoice', 'inner');
@@ -710,7 +728,8 @@ class Report_penjualan_model extends BF_Model
         $this->db->select("
             SUM(d.qty) AS qty_total,
             SUM(d.subtotal) AS penjualan_total,
-            ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp
+            ROUND(SUM(d.subtotal) / 1.11) AS penjualan_total_dpp,
+            SUM(IFNULL(d.harga_beli,0) * d.qty) AS hpp_total
         ", false);
         $this->db->from('tr_invoice_sales i');
         $this->db->join('tr_invoice_sales_detail d', 'd.id_invoice = i.id_invoice', 'inner');
@@ -734,10 +753,15 @@ class Report_penjualan_model extends BF_Model
 
         $row = $this->db->get()->row();
 
+        $salesDpp = (float) ($row->penjualan_total_dpp ?? 0);
+        $margin   = $salesDpp - (float) ($row->hpp_total ?? 0);
+
         return [
             'qty_total'           => (float) ($row->qty_total ?? 0),
             'penjualan_total'     => (float) ($row->penjualan_total ?? 0),
-            'penjualan_total_dpp' => (float) ($row->penjualan_total_dpp ?? 0),
+            'penjualan_total_dpp' => $salesDpp,
+            'margin_total'        => $margin,
+            'persen_margin'       => $salesDpp > 0 ? ($margin / $salesDpp) * 100 : 0,
         ];
     }
 

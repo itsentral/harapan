@@ -594,8 +594,8 @@ class Report_penjualan extends Admin_Controller
         // TITLE (5 kolom A..E, disesuaikan dengan tampilan)
         // =========================
         $sheet->setCellValue('A1', 'Penjualan per Barang');
-        $sheet->mergeCells('A1:F1');
-        $sheet->getStyle('A1:F1')->applyFromArray($styleTitle);
+        $sheet->mergeCells('A1:H1');
+        $sheet->getStyle('A1:H1')->applyFromArray($styleTitle);
         $sheet->getRowDimension(1)->setRowHeight(24);
 
         // Periode format seperti gambar: "Dari 01 Des 2025 s/d 31 Jan 2026"
@@ -605,8 +605,8 @@ class Report_penjualan extends Admin_Controller
         $periodeLine .= !empty($tgl_sampai) ? date('d M Y', strtotime($tgl_sampai)) : '-';
 
         $sheet->setCellValue('A2', $periodeLine);
-        $sheet->mergeCells('A2:F2');
-        $sheet->getStyle('A2:F2')->applyFromArray($styleSubTitle);
+        $sheet->mergeCells('A2:H2');
+        $sheet->getStyle('A2:H2')->applyFromArray($styleSubTitle);
 
         // =========================
         // HEADER TABLE (mulai baris 4) - samakan dengan tampilan
@@ -618,7 +618,9 @@ class Report_penjualan extends Admin_Controller
         $sheet->setCellValue("D{$rowHeader}", 'Kuantitas');
         $sheet->setCellValue("E{$rowHeader}", 'Penjualan');
         $sheet->setCellValue("F{$rowHeader}", 'Revenue (exclude PPn)');
-        $sheet->getStyle("A{$rowHeader}:F{$rowHeader}")->applyFromArray($tableHeader);
+        $sheet->setCellValue("G{$rowHeader}", 'Margin');
+        $sheet->setCellValue("H{$rowHeader}", '% Margin');
+        $sheet->getStyle("A{$rowHeader}:H{$rowHeader}")->applyFromArray($tableHeader);
         $sheet->getRowDimension($rowHeader)->setRowHeight(20);
 
         // width biar mirip gambar
@@ -628,6 +630,8 @@ class Report_penjualan extends Admin_Controller
         $sheet->getColumnDimension('D')->setWidth(12);
         $sheet->getColumnDimension('E')->setWidth(18);
         $sheet->getColumnDimension('F')->setWidth(18);
+        $sheet->getColumnDimension('G')->setWidth(18);
+        $sheet->getColumnDimension('H')->setWidth(10);
 
         // wrap text untuk nama barang panjang
         $sheet->getStyle('B:B')->getAlignment()->setWrapText(true);
@@ -644,12 +648,18 @@ class Report_penjualan extends Admin_Controller
         $grandSales = 0;
 
         $grandSalesDpp = 0;
+        $grandHpp = 0;
         foreach ($rows as $row) {
             $nama     = strtoupper((string)$row->nama_barang);
             $satuan   = strtoupper((string)$row->satuan);
             $qty      = (float)$row->qty_total;
             $sales    = (float)$row->penjualan_total;
             $salesDpp = (float)$row->penjualan_total_dpp;
+            $hpp      = (float)$row->hpp_total;
+
+            // Margin = Revenue (exclude PPn) - HPP; % Margin = Margin / Revenue * 100
+            $margin       = $salesDpp - $hpp;
+            $persenMargin = $salesDpp > 0 ? round(($margin / $salesDpp) * 100) : 0;
 
             $sheet->setCellValueExplicit("A{$rowNum}", (string)$no++, PHPExcel_Cell_DataType::TYPE_STRING);
             $sheet->setCellValueExplicit("B{$rowNum}", $nama, PHPExcel_Cell_DataType::TYPE_STRING);
@@ -657,21 +667,25 @@ class Report_penjualan extends Admin_Controller
             $sheet->setCellValueExplicit("D{$rowNum}", $qty, PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->setCellValueExplicit("E{$rowNum}", $sales, PHPExcel_Cell_DataType::TYPE_NUMERIC);
             $sheet->setCellValueExplicit("F{$rowNum}", $salesDpp, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("G{$rowNum}", $margin, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("H{$rowNum}", $persenMargin . '%', PHPExcel_Cell_DataType::TYPE_STRING);
 
-            $sheet->getStyle("A{$rowNum}:F{$rowNum}")->applyFromArray($tableBody);
+            $sheet->getStyle("A{$rowNum}:H{$rowNum}")->applyFromArray($tableBody);
 
             // alignment
             $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("B{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_LEFT);
             $sheet->getStyle("C{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("D{$rowNum}:F{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("D{$rowNum}:G{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("H{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
             // format angka ribuan
-            $sheet->getStyle("D{$rowNum}:F{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle("D{$rowNum}:G{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
 
             $grandQty += $qty;
             $grandSales += $sales;
             $grandSalesDpp += $salesDpp;
+            $grandHpp += $hpp;
 
             $rowNum++;
         }
@@ -679,19 +693,25 @@ class Report_penjualan extends Admin_Controller
         // =========================
         // TOTAL (Total Nama Barang)
         // =========================
+        $grandMargin       = $grandSalesDpp - $grandHpp;
+        $grandPersenMargin = $grandSalesDpp > 0 ? round(($grandMargin / $grandSalesDpp) * 100) : 0;
+
         $sheet->setCellValue("A{$rowNum}", 'Total Nama Barang');
         $sheet->mergeCells("A{$rowNum}:C{$rowNum}");
         $sheet->setCellValueExplicit("D{$rowNum}", (float)$grandQty, PHPExcel_Cell_DataType::TYPE_NUMERIC);
         $sheet->setCellValueExplicit("E{$rowNum}", (float)$grandSales, PHPExcel_Cell_DataType::TYPE_NUMERIC);
         $sheet->setCellValueExplicit("F{$rowNum}", (float)$grandSalesDpp, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->setCellValueExplicit("G{$rowNum}", (float)$grandMargin, PHPExcel_Cell_DataType::TYPE_NUMERIC);
+        $sheet->setCellValueExplicit("H{$rowNum}", $grandPersenMargin . '%', PHPExcel_Cell_DataType::TYPE_STRING);
 
-        $sheet->getStyle("A{$rowNum}:F{$rowNum}")->applyFromArray($rowTotal);
-        $sheet->getStyle("D{$rowNum}:F{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle("A{$rowNum}:H{$rowNum}")->applyFromArray($rowTotal);
+        $sheet->getStyle("D{$rowNum}:G{$rowNum}")->getNumberFormat()->setFormatCode('#,##0');
         $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_LEFT);
-        $sheet->getStyle("D{$rowNum}:F{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle("D{$rowNum}:G{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle("H{$rowNum}")->getAlignment()->setHorizontal(PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
 
         // border top lebih tebal untuk baris total
-        $sheet->getStyle("A{$rowNum}:F{$rowNum}")->getBorders()->getTop()->setBorderStyle(PHPExcel_Style_Border::BORDER_MEDIUM);
+        $sheet->getStyle("A{$rowNum}:H{$rowNum}")->getBorders()->getTop()->setBorderStyle(PHPExcel_Style_Border::BORDER_MEDIUM);
 
         // =========================
         // OUTPUT
