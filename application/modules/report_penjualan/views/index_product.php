@@ -29,6 +29,8 @@
                         <th>Kuantitas</th>
                         <th>Penjualan</th>
                         <th>Revenue (exclude PPn)</th>
+                        <th>Margin</th>
+                        <th>% Margin</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -38,6 +40,8 @@
                         <th class="text-right" id="footQty">0</th>
                         <th class="text-right" id="footSales">0</th>
                         <th class="text-right" id="footSalesDpp">0</th>
+                        <th class="text-right" id="footMargin">0</th>
+                        <th class="text-center" id="footPersenMargin">0%</th>
                     </tr>
                 </tfoot>
             </table>
@@ -117,10 +121,14 @@
                         $('#footQty').text(json.grandTotal.qty_total);
                         $('#footSales').text(json.grandTotal.penjualan_total);
                         $('#footSalesDpp').text(json.grandTotal.penjualan_total_dpp);
+                        $('#footMargin').text(json.grandTotal.margin_total);
+                        $('#footPersenMargin').text(json.grandTotal.persen_margin);
                     } else {
                         $('#footQty').text('0');
                         $('#footSales').text('0');
                         $('#footSalesDpp').text('0');
+                        $('#footMargin').text('0');
+                        $('#footPersenMargin').text('0%');
                     }
                     return json.data;
                 },
