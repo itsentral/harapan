@@ -75,48 +75,124 @@ class Approval_penawaran_manager extends Admin_Controller
             'approved_at_manager' => date('Y-m-d H:i:s')
         ];
 
+        // Butuh approval direksi jika level sudah D, atau ada produk
+        // (termasuk yang ditambah/diubah manager) dengan diskon < -2%.
+        // Aturan diskon sama dengan Penawaran::save().
+        $butuh_direksi = ($penawaran['level_approval'] == 'D');
 
-        // Cek apakah level approval butuh direksi
-        if ($penawaran['level_approval'] == 'D') {
-            $update['status'] = 'WA'; // Tunggu approval Direksi
-        } else {
-            $update['status'] = 'A'; // Final approval dari Manager
-        }
+        // Proses revisi data produk (penawaran_detail).
+        // Manager boleh tambah/hapus produk saat approval, jadi total header
+        // wajib dihitung ulang dari detail agar header = jumlah detail.
+        $product_data = [];
+        $total_penawaran  = 0;
+        $total_price_list = 0;
 
-        // Simpan update ke penawaran
-        $this->db->where('id_penawaran', $id_penawaran);
-        $this->db->update('penawaran', $update);
-
-        // Proses revisi data produk (penawaran_detail)
         if (isset($post['product']) && is_array($post['product'])) {
-            $product_data = [];
-
             foreach ($post['product'] as $pro) {
+                if (empty($pro['id_product'])) {
+                    continue; // baris kosong (produk belum dipilih) tidak disimpan
+                }
+
+                $qty             = (float) str_replace(',', '', $pro['qty']);
+                $price_list      = (float) str_replace(',', '', $pro['price_list']);
+                $harga_penawaran = (float) str_replace(',', '', $pro['harga_penawaran']);
+
+                // Rumus sama dengan hitungTotal() di view
+                $diskon       = ($harga_penawaran && $price_list) ? (($harga_penawaran - $price_list) / $price_list) * 100 : 0;
+                $diskon_nilai = ($price_list * $diskon) / 100;
+                $total        = $qty * $harga_penawaran;
+                $total_pl     = $qty * $price_list;
+
+                $total_penawaran  += $total;
+                $total_price_list += $total_pl;
+
+                if (round($diskon, 2) < -2) {
+                    $butuh_direksi = true;
+                }
+
                 $product_data[] = [
                     'id_penawaran'      => $id_penawaran,
                     'id_product'        => $pro['id_product'],
                     'product_name'      => $pro['product_name'],
                     'harga_beli'        => str_replace(',', '', $pro['harga_beli']),
-                    'qty'               => $pro['qty'],
-                    'price_list'        => str_replace(',', '', $pro['price_list']),
-                    'harga_penawaran'   => str_replace(',', '', $pro['harga_penawaran']),
-                    'diskon'            => $pro['diskon'],
-                    'diskon_nilai'      => $pro['diskon_nilai'],
-                    'total'             => str_replace(',', '', $pro['total']),
-                    'total_pl'          => str_replace(',', '', $pro['total_pl']),
+                    'qty'               => $qty,
+                    'price_list'        => $price_list,
+                    'harga_penawaran'   => $harga_penawaran,
+                    'diskon'            => round($diskon, 2),
+                    'diskon_nilai'      => round($diskon_nilai, 2),
+                    'total'             => $total,
+                    'total_pl'          => $total_pl,
                 ];
             }
+        }
 
-            if (!empty($product_data)) {
-                $this->db->where('id_penawaran', $id_penawaran)->delete('penawaran_detail');
+        if (empty($product_data)) {
+            echo json_encode(['status' => 0, 'pesan' => 'Produk penawaran tidak boleh kosong']);
+            return;
+        }
 
-                $this->db->insert_batch('penawaran_detail', $product_data);
-            }
+        // Hitung ulang total header, rumus sama dengan hitungAllTotal() di view.
+        // Freight & diskon khusus diambil dari data penawaran (tidak diubah saat approval).
+        $diskon_khusus = (float) $penawaran['diskon_khusus'];
+        if ($diskon_khusus > $total_penawaran) {
+            $diskon_khusus = $total_penawaran; // cegah minus
+        }
+        $freight             = (float) $penawaran['freight'];
+        $total_harga_freight = ($total_penawaran - $diskon_khusus) + $freight;
+        $exclude_ppn         = $total_harga_freight / 1.11;
+        $dpp                 = ($exclude_ppn * 11) / 12;
+        $ppn                 = (12 * $dpp) / 100;
+
+        $update['total_penawaran']           = $total_penawaran;
+        $update['total_price_list']          = $total_price_list;
+        $update['total_diskon_persen']       = $total_price_list ? round((($total_penawaran - $total_price_list) / $total_price_list) * 100, 2) : 0;
+        $update['total_harga_freight']       = $total_harga_freight;
+        $update['total_harga_freight_exppn'] = round($exclude_ppn, 2);
+        $update['dpp']                       = round($dpp, 2);
+        $update['ppn']                       = round($ppn, 2);
+        $update['grand_total']               = round($exclude_ppn + $ppn, 2);
+
+        // Hitung ulang status credit limit dari grand total baru,
+        // rumus sama dengan updateCreditStatus() di view.
+        $credit_limit = (float) $penawaran['credit_limit'];
+        $selisih      = ($update['grand_total'] + (float) $penawaran['outstanding']) - $credit_limit;
+        if ($credit_limit > 0 && $selisih > 0) {
+            $update['over_limit']          = round($selisih, 2);
+            $update['status_credit_limit'] = 'Overlimit';
+        } else {
+            $update['over_limit']          = 0;
+            $update['status_credit_limit'] = 'Tidak Overlimit';
+        }
+
+        // Tentukan level approval & status
+        if ($butuh_direksi) {
+            $update['level_approval'] = 'D';
+            $update['status']         = 'WA'; // Tunggu approval Direksi
+            $pesan = 'Penawaran berhasil diapprove oleh Manager, menunggu approval Direksi.';
+        } else {
+            $update['status'] = 'A'; // Final approval dari Manager
+            $pesan = 'Penawaran berhasil diapprove oleh Manager.';
+        }
+
+        $this->db->trans_start();
+
+        // Simpan update ke penawaran
+        $this->db->where('id_penawaran', $id_penawaran);
+        $this->db->update('penawaran', $update);
+
+        $this->db->where('id_penawaran', $id_penawaran)->delete('penawaran_detail');
+        $this->db->insert_batch('penawaran_detail', $product_data);
+
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === FALSE) {
+            echo json_encode(['status' => 0, 'pesan' => 'Gagal menyimpan approval penawaran']);
+            return;
         }
 
         echo json_encode([
             'status' => 1,
-            'pesan' => 'Penawaran berhasil diapprove oleh Manager.'
+            'pesan' => $pesan
         ]);
     }
 
