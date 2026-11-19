@@ -212,7 +212,7 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
                                                 </select>
                                             </td>
                                             <td hidden>
-                                                <?php if ($mode == 'approval_manager'): ?>
+                                                <?php if ($mode == 'approval_manager' || $mode == 'approval_direksi'): ?>
                                                     <input type="hidden" name="product[<?= $loop ?>][id_product]" value="<?= $dp['id_product'] ?>">
                                                 <?php endif; ?>
                                                 <input type="hidden" name="product[<?= $loop ?>][product_name]" id="product_name_<?= $loop ?>" value="<?= $dp['product_name'] ?>">
@@ -1171,7 +1171,9 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
         $.ajax({
             url: '<?= base_url('penawaran/get_info_kredit_limit') ?>',
             type: 'POST',
-            data: { id_customer: idCustomer },
+            data: {
+                id_customer: idCustomer
+            },
             dataType: 'json',
             success: function(res) {
                 if (res.status != 1) {
@@ -1193,7 +1195,9 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
         $.ajax({
             url: '<?= base_url('penawaran/get_jatuh_tempo') ?>',
             type: 'POST',
-            data: { id_customer: idCustomer },
+            data: {
+                id_customer: idCustomer
+            },
             dataType: 'json',
             success: function(res) {
                 if (res.status != 1) {
@@ -1205,7 +1209,10 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
                     $('#tbody_jatuh_tempo').html('<tr><td colspan="4" class="text-center text-muted">Tidak ada data.</td></tr>');
                     return;
                 }
-                const fmtIDR = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                const fmtIDR = new Intl.NumberFormat('id-ID', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                });
                 let html = '';
                 rows.forEach(r => {
                     const grandTotal = fmtIDR.format(toNumber(r.grand_total));
@@ -1223,7 +1230,9 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
         $.ajax({
             url: '<?= base_url('penawaran/get_histori_pembayaran') ?>',
             type: 'POST',
-            data: { id_customer: idCustomer },
+            data: {
+                id_customer: idCustomer
+            },
             dataType: 'json',
             success: function(res) {
                 if (res.status != 1) {
