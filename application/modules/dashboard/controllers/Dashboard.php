@@ -133,6 +133,12 @@ class Dashboard extends Admin_Controller
 
 	public function index()
 	{
+		// Punya akses Dashboard_Sbf.View -> langsung ke dashboard_sbf,
+		// selain itu tampilkan halaman selamat datang.
+		if ($this->auth->has_permission('Dashboard_Sbf.View')) {
+			redirect('dashboard_sbf');
+		}
+
 		$this->template->title('Dashboard');
 		$this->template->page_icon('fa fa-dashboard');
 		$this->template->render('harapan');
