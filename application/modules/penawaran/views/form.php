@@ -929,7 +929,16 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
                                     window.location.href = base_url + active_controller;
                                 } else {
 
-                                    if (data.status == 2) {
+                                    if (data.status == 3) {
+                                        // Piutang lewat jatuh tempo: tampil sampai user menutup
+                                        swal({
+                                            title: "Tidak Bisa Disimpan!",
+                                            text: data.pesan,
+                                            type: "error",
+                                            showCancelButton: false,
+                                            confirmButtonText: "OK"
+                                        });
+                                    } else if (data.status == 2) {
                                         swal({
                                             title: "Save Failed!",
                                             text: data.pesan,

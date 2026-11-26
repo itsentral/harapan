@@ -165,6 +165,33 @@ class Penawaran_dropship extends Admin_Controller
 
         $id = $data['id_penawaran'];
 
+        // Blokir simpan jika tipe bayar tempo dan customer masih punya piutang lewat jatuh tempo
+        if (isset($data['tipe_bayar']) && $data['tipe_bayar'] === 'tempo') {
+            $overdue = $this->db
+                ->select('id_invoice, piutang, jatuh_tempo')
+                ->from('tr_invoice_sales')
+                ->where('id_customer', $data['id_customer'])
+                ->where('piutang >', 0)
+                ->where('jatuh_tempo <', date('Y-m-d'))
+                ->order_by('jatuh_tempo', 'asc')
+                ->get()
+                ->result_array();
+
+            if (!empty($overdue)) {
+                $list = [];
+                foreach (array_slice($overdue, 0, 5) as $inv) {
+                    $list[] = $inv['id_invoice'] . ' (' . date('d/m/Y', strtotime($inv['jatuh_tempo'])) . ')';
+                }
+                $lebih = count($overdue) > 5 ? ' dan ' . (count($overdue) - 5) . ' invoice lainnya' : '';
+
+                echo json_encode([
+                    'status' => 3,
+                    'pesan'  => 'Customer masih memiliki piutang yang melewati jatuh tempo: ' . implode(', ', $list) . $lebih . '. Harus dilunasi terlebih dahulu jika tipe bayar Tempo.'
+                ]);
+                return;
+            }
+        }
+
         $is_update = !empty($id);
         $id_penawaran = $is_update ? $id : $this->penawaran_dropship_model->generate_id();
 

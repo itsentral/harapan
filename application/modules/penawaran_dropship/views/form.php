@@ -5,9 +5,12 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
 ?>
 
 <?php if (isset($mode) && $mode == 'view'): ?>
-<style>
-    .btn-danger[onclick^="DelProduct"], #add-product { display: none !important; }
-</style>
+    <style>
+        .btn-danger[onclick^="DelProduct"],
+        #add-product {
+            display: none !important;
+        }
+    </style>
 <?php endif; ?>
 
 <div class="box box-primary">
@@ -170,7 +173,7 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
                                     <th class="text-center" style="min-width: 160px;">Total Harga Penawaran</th>
                                     <th class="text-center" style="width: 50px;">
                                         <?php if (!isset($mode) || $mode != 'view') :
-                                        echo form_button(array('type' => 'button', 'class' => 'btn btn-sm btn-success', 'value' => 'back', 'content' => 'Add', 'id' => 'add-product'));
+                                            echo form_button(array('type' => 'button', 'class' => 'btn btn-sm btn-success', 'value' => 'back', 'content' => 'Add', 'id' => 'add-product'));
                                         endif; ?>
                                     </th>
                                 </tr>
@@ -881,7 +884,16 @@ $disabled = (isset($mode) && ($mode == 'approval_manager' || $mode == 'approval_
                                     window.location.href = base_url + active_controller;
                                 } else {
 
-                                    if (data.status == 2) {
+                                    if (data.status == 3) {
+                                        // Piutang lewat jatuh tempo: tampil sampai user menutup
+                                        swal({
+                                            title: "Tidak Bisa Disimpan!",
+                                            text: data.pesan,
+                                            type: "error",
+                                            showCancelButton: false,
+                                            confirmButtonText: "OK"
+                                        });
+                                    } else if (data.status == 2) {
                                         swal({
                                             title: "Save Failed!",
                                             text: data.pesan,
