@@ -344,14 +344,14 @@
         </div>
         <div class="col-md-2 col-sm-4 col-xs-6">
             <div class="kpi warn">
-                <div class="label">Jatuh Tempo (1-90 hr)</div>
+                <div class="label">Late Debt (15-30 hr)</div>
                 <div class="value mono" id="kpi-jt">-</div>
                 <div class="sub" id="kpi-jt-sub">&nbsp;</div>
             </div>
         </div>
         <div class="col-md-2 col-sm-4 col-xs-6">
             <div class="kpi bad">
-                <div class="label">Macet (&gt;90 hr)</div>
+                <div class="label">Bad Debt (&gt;30 hr)</div>
                 <div class="value mono" id="kpi-macet">-</div>
                 <div class="sub" id="kpi-macet-sub">&nbsp;</div>
             </div>
@@ -405,7 +405,7 @@
                     <div class="legend-row">
                         <span><span class="legend-dot" style="background:#3F7D58"></span>Belum jatuh tempo</span>
                         <span><span class="legend-dot" style="background:#E8952F"></span>Jatuh tempo (1-90 hr)</span>
-                        <span><span class="legend-dot" style="background:#C23B3B"></span>Macet (&gt;90 hr)</span>
+                        <span><span class="legend-dot" style="background:#C23B3B"></span>&gt;90 hr</span>
                     </div>
                 </div>
             </div>
@@ -436,7 +436,8 @@
                         <li>Penjualan dihitung dari <b>tanggal kirim</b> invoice, <b>sudah termasuk PPN</b>, tanpa invoice yang dibatalkan.</li>
                         <li>Tertagih = pembayaran yang diterima pada bulan tersebut. Collection rate = tertagih bulan ini / penjualan bulan ini, sehingga bisa melebihi 100% bila ada pelunasan invoice bulan lalu.</li>
                         <li>Piutang dan aging adalah posisi <b>per hari ini</b> (tidak ikut filter bulan). Umur dihitung dari hari lewat jatuh tempo.</li>
-                        <li>Jatuh tempo diambil dari invoice. Bila kosong, dihitung dari tanggal kirim + TOP sales order.</li>
+                        <li>Total piutang dan aging memakai rumus Report Late &amp; Bad Debt per Sales. Jatuh tempo diambil dari invoice; invoice tanpa jatuh tempo dianggap belum jatuh tempo.</li>
+                        <li>Kartu dan tabel <b>Late Debt (15-30 hr)</b> dan <b>Bad Debt (&gt;30 hr)</b> memakai rumus yang sama dengan menu Report Late &amp; Bad Debt per Sales.</li>
                         <li>Target sales dari master target penjualan, sama dengan Report Margin Achievement.</li>
                         <li>Kategori produk = Product Category (level 2 inventory). Nilai kategori dihitung dari detail invoice (include PPN, sebelum diskon khusus), jadi totalnya bisa sedikit berbeda dari angka Penjualan di atas. Lima kategori terbesar ditampilkan, sisanya digabung ke "Lainnya".</li>
                     </ul>
@@ -447,7 +448,7 @@
 
     <!-- Piutang jatuh tempo -->
     <div class="section-title">
-        <h3>Piutang Jatuh Tempo</h3>
+        <h3>Piutang Late Debt (15-30 hr)</h3>
         <div class="rule"></div>
         <span class="count" id="cnt-jt">0 invoice</span>
     </div>
@@ -474,7 +475,7 @@
 
     <!-- Piutang macet -->
     <div class="section-title">
-        <h3>Piutang Macet</h3>
+        <h3>Piutang Bad Debt (&gt;30 hr)</h3>
         <div class="rule"></div>
         <span class="count" id="cnt-macet">0 invoice</span>
     </div>
@@ -804,7 +805,7 @@
                     '<td class="num mono">' + rp(r.sisa_piutang) + '</td>' +
                     '<td>' + esc(r.nm_sales || '-') + '</td>' +
                     '<td class="mono">' + tgl(r.tgl_terakhir_bayar) + '</td>' +
-                    '<td><span class="stamp ' + (macet ? 'macet' : 'jt') + '">' + (macet ? 'Macet' : 'Jatuh Tempo') + '</span></td>' +
+                    '<td><span class="stamp ' + (macet ? 'macet' : 'jt') + '">' + (macet ? 'Bad Debt' : 'Late Debt') + '</span></td>' +
                     '</tr>';
             });
             $(sel + ' tbody').html(html);
@@ -849,7 +850,7 @@
 
                     if (res.kpi.macet_invoice > 0) {
                         $('#macet-callout-text').html('<b>Perhatian penagihan:</b> ' + rp(res.kpi.macet_total) +
-                            ' dari ' + num(res.kpi.macet_invoice) + ' invoice sudah lewat jatuh tempo lebih dari 90 hari.');
+                            ' dari ' + num(res.kpi.macet_invoice) + ' invoice sudah lewat jatuh tempo lebih dari 30 hari (bad debt).');
                         $('#macet-callout').show();
                     } else {
                         $('#macet-callout').hide();

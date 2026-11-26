@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 defined('BASEPATH') or exit('No direct script access allowed');
 
 /**
@@ -12,14 +12,17 @@ defined('BASEPATH') or exit('No direct script access allowed');
  *                 Pembayaran yang dibatalkan (tr_invoice_payment.is_cancel = 'YES') tidak dihitung.
  * - Jatuh tempo : tr_invoice_sales.jatuh_tempo. Jika NULL: tanggal kirim (atau tanggal invoice)
  *                 + TOP hari dari sales_order.payment_term -> list_help.data1.
- * - Umur        : hari lewat jatuh tempo (hari ini - jatuh tempo).
- *                 Belum JT <= 0 | Jatuh tempo 1-90 hari | Macet > 90 hari.
+ * - Umur        : hari lewat jatuh tempo (hari ini - jatuh tempo), dipakai untuk chart aging.
+ * - Late Debt   : umur 15-30 hari, Bad Debt: umur > 30 hari. Kartu & tabel "Jatuh Tempo"/"Macet"
+ *                 memakai rumus Report_debt (lihat get_open_invoices).
  * - Tertagih    : SUM(total_bayar_idr) berdasarkan tgl_pembayaran pada bulan tersebut.
  * - Collection rate: tertagih bulan terpilih / penjualan bulan terpilih.
  */
 class Dashboard_sbf_model extends BF_Model
 {
-    const MACET_HARI = 90;
+    const MACET_HARI = 90;      // batas bucket aging chart
+    const LATE_HARI_MIN = 15;   // Late Debt: 15-30 hari
+    const BAD_HARI_MIN  = 31;   // Bad Debt: > 30 hari
 
     public function __construct()
     {
@@ -32,54 +35,49 @@ class Dashboard_sbf_model extends BF_Model
 
     /**
      * Semua invoice yang masih punya sisa piutang beserta hari lewat jatuh tempo.
+     * Rumus disamakan dengan modul Report_debt (Report Late & Bad Debt per Sales):
+     * - umur = hari ini - tr_invoice_sales.jatuh_tempo (tanpa jatuh tempo = belum jatuh tempo)
+     * - sisa = grand_total - bayar - CN - pembulatan - CN retur (tr_retur jenis 2 status 2), min 0
+     * - invoice aktif = is_cancel NULL atau 2
+     * - hanya invoice milik customer yang punya sales (join employee)
      */
     public function get_open_invoices($today)
     {
         $sql = "
-            SELECT t.*
-            FROM (
-                SELECT
-                    i.id_invoice,
-                    i.id_customer,
-                    i.nm_customer,
-                    DATE(i.created_on) AS tgl_invoice,
-                    i.grand_total AS nilai_invoice,
-                    i.grand_total - COALESCE(p.total_pelunasan, 0) AS sisa_piutang,
-                    p.tgl_terakhir_bayar,
-                    COALESCE(
-                        i.jatuh_tempo,
-                        DATE_ADD(
-                            DATE(COALESCE(i.delivery_date, i.created_on)),
-                            INTERVAL COALESCE((
-                                SELECT CAST(lh.data1 AS UNSIGNED)
-                                FROM sales_order so
-                                INNER JOIN list_help lh ON lh.id = so.payment_term
-                                WHERE so.no_so = i.id_so
-                                LIMIT 1
-                            ), 0) DAY
-                        )
-                    ) AS jatuh_tempo,
-                    c.id_karyawan,
-                    e.nm_karyawan
-                FROM tr_invoice_sales i
-                LEFT JOIN (
-                    SELECT
-                        d.no_invoice,
-                        SUM(COALESCE(d.total_bayar_idr, 0) + COALESCE(d.total_cn_idr, 0) + COALESCE(d.pembulatan_idr, 0)) AS total_pelunasan,
-                        MAX(pp.tgl_pembayaran) AS tgl_terakhir_bayar
-                    FROM tr_invoice_payment_detail d
-                    INNER JOIN tr_invoice_payment pp ON pp.kd_pembayaran = d.kd_pembayaran
-                    WHERE (pp.is_cancel IS NULL OR pp.is_cancel != 'YES')
-                    GROUP BY d.no_invoice
-                ) p ON p.no_invoice = i.id_invoice
-                LEFT JOIN master_customers c ON c.id_customer = i.id_customer
-                LEFT JOIN employee e ON e.id = c.id_karyawan
-                WHERE IFNULL(i.is_cancel, 0) = 0
-            ) t
-            WHERE t.sisa_piutang > 0
+            SELECT
+                a.id_invoice,
+                a.id_customer,
+                a.nm_customer,
+                a.jatuh_tempo,
+                e.nm_karyawan,
+                bayar.tgl_terakhir_bayar,
+                GREATEST(a.grand_total - COALESCE(bayar.total_bayar, 0) - COALESCE(bayar.total_cn, 0) - COALESCE(bayar.total_pembulatan, 0) - COALESCE(cn.total_cn_retur, 0), 0) AS sisa_piutang
+            FROM tr_invoice_sales a
+            INNER JOIN master_customers b ON a.id_customer = b.id_customer
+            INNER JOIN employee e ON b.id_karyawan = e.id
+            LEFT JOIN (
+                SELECT pd.no_invoice,
+                       SUM(pd.total_bayar_idr) AS total_bayar,
+                       SUM(pd.total_cn_idr) AS total_cn,
+                       SUM(pd.pembulatan_idr) AS total_pembulatan,
+                       MAX(p.tgl_pembayaran) AS tgl_terakhir_bayar
+                FROM tr_invoice_payment_detail pd
+                INNER JOIN tr_invoice_payment p ON p.kd_pembayaran = pd.kd_pembayaran
+                WHERE p.tgl_pembayaran <= ?
+                GROUP BY pd.no_invoice
+            ) bayar ON bayar.no_invoice = a.id_invoice
+            LEFT JOIN (
+                SELECT id_invoice, SUM(total_harga) AS total_cn_retur
+                FROM tr_retur
+                WHERE jenis_retur = 2 AND status = 2 AND tgl_retur <= ?
+                GROUP BY id_invoice
+            ) cn ON cn.id_invoice = a.id_invoice
+            WHERE a.created_on <= ?
+              AND (a.is_cancel IS NULL OR a.is_cancel = 2)
+            HAVING sisa_piutang > 0
         ";
 
-        $rows = $this->db->query($sql)->result_array();
+        $rows = $this->db->query($sql, [$today, $today, $today . ' 23:59:59'])->result_array();
 
         $today_ts = strtotime($today);
         foreach ($rows as &$r) {
@@ -96,6 +94,8 @@ class Dashboard_sbf_model extends BF_Model
 
     /**
      * Ringkasan piutang: total, per bucket aging, dan daftar tabel.
+     * Kartu & tabel "jatuh tempo" = Late Debt (15-30 hr), "macet" = Bad Debt (>30 hr),
+     * diambil dari rumus Report_debt.
      */
     public function get_piutang_summary($today, $limit = 10)
     {
@@ -132,6 +132,16 @@ class Dashboard_sbf_model extends BF_Model
             } else {
                 $buckets['b_90_plus'] += $s;
             }
+        }
+
+        // Late Debt (15-30 hr) & Bad Debt (>30 hr) dari rumus Report_debt
+        foreach ($rows as $r) {
+            $h = $r['hari_telat'];
+            $s = $r['sisa_piutang'];
+
+            if ($h < self::LATE_HARI_MIN) {
+                continue;
+            }
 
             $item = [
                 'nm_customer'        => $r['nm_customer'],
@@ -143,7 +153,7 @@ class Dashboard_sbf_model extends BF_Model
                 'tgl_terakhir_bayar' => $r['tgl_terakhir_bayar'],
             ];
 
-            if ($h > self::MACET_HARI) {
+            if ($h >= self::BAD_HARI_MIN) {
                 $macet_total += $s;
                 $macet_inv++;
                 $macet_rows[] = $item;
