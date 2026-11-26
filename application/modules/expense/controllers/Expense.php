@@ -864,6 +864,84 @@ class Expense extends Admin_Controller
 		$this->template->render('index');
 	}
 
+	// export excel list expense
+	public function download_excel($mode = '')
+	{
+		set_time_limit(0);
+		ini_set('memory_limit', '1024M');
+		$this->load->library("PHPExcel");
+
+		$objPHPExcel = new PHPExcel();
+
+		$whiteCenterBold = whiteCenterBold();
+		$mainTitle       = mainTitle();
+		$tableBodyCenter = tableBodyCenter();
+		$tableBodyLeft   = tableBodyLeft();
+
+		$sheet = $objPHPExcel->getActiveSheet();
+
+		$headers   = array('#', 'NO DOKUMEN', 'TANGGAL', 'NAMA', 'JENIS', 'APPROVAL', 'APPROVAL DATE', 'KETERANGAN', 'STATUS');
+		$Col_Akhir = getColsChar(count($headers));
+
+		$sheet->setCellValue('A1', 'EXPENSE REPORT');
+		$sheet->getStyle('A1:' . $Col_Akhir . '2')->applyFromArray($mainTitle);
+		$sheet->mergeCells('A1:' . $Col_Akhir . '2');
+
+		$headRow = 4;
+		foreach ($headers as $i => $title) {
+			$Cols = getColsChar($i + 1);
+			$sheet->getColumnDimension($Cols)->setAutoSize(true);
+			$sheet->setCellValue($Cols . $headRow, $title);
+			$sheet->getStyle($Cols . $headRow)->applyFromArray($whiteCenterBold);
+		}
+
+		if ($mode === 'all') {
+			// sama dengan halaman Expense Report List (semua user)
+			$dataResult = $this->Expense_model->GetListData();
+		} else {
+			// sama dengan halaman index (milik user login)
+			$dataResult = $this->Expense_model->GetListData(array('nama' => $this->auth->user_name(), 'pettycash' => null, 'exp_pib' => null));
+		}
+		$row = $headRow;
+		$no  = 0;
+		if (!empty($dataResult)) {
+			foreach ($dataResult as $record) {
+				$no++;
+				$row++;
+				$tgl_doc  = (!empty($record->tgl_doc) && $record->tgl_doc != '0000-00-00') ? date('d M Y', strtotime($record->tgl_doc)) : '-';
+				$app_date = (!empty($record->approved_on) && $record->approved_on != '0000-00-00 00:00:00') ? date('d M Y H:i', strtotime($record->approved_on)) : '-';
+				$values = array(
+					$no,
+					$record->no_doc,
+					$tgl_doc,
+					($record->nmuser ?: $record->nama),
+					(($record->pettycash != null) ? 'Pettycash' : 'Expense'),
+					($record->nmapproval ?: '-'),
+					$app_date,
+					$record->informasi,
+					(isset($this->status[$record->status]) ? $this->status[$record->status] : $record->status),
+				);
+				foreach ($values as $i => $val) {
+					$Cols = getColsChar($i + 1);
+					$sheet->setCellValueExplicit($Cols . $row, $val, PHPExcel_Cell_DataType::TYPE_STRING);
+					$sheet->getStyle($Cols . $row)->applyFromArray(in_array($i, array(0, 2, 4, 6, 8)) ? $tableBodyCenter : $tableBodyLeft);
+				}
+			}
+		}
+
+		$sheet->setTitle('Expense Report');
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		ob_end_clean();
+		header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
+		header("Cache-Control: no-store, no-cache, must-revalidate");
+		header("Cache-Control: post-check=0, pre-check=0", false);
+		header("Pragma: no-cache");
+		header('Content-Type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment;filename="expense-report-' . date('YmdHis') . '.xls"');
+		$objWriter->save("php://output");
+		exit;
+	}
+
 	// create
 	public function create()
 	{
@@ -984,6 +1062,7 @@ class Expense extends Admin_Controller
 		$this->template->set('status', $this->status);
 		$this->template->set('results', $data);
 		$this->template->set('data_detail', $data_detail);
+		$this->template->set('export_url', 'expense/download_excel/all');
 		$this->template->render('index');
 	}
 	public function approval($id)

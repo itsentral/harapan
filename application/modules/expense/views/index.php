@@ -14,14 +14,17 @@ $ENABLE_DELETE  = has_permission('Expense.Delete');
 		vertical-align: middle;
 		border: 1px solid #367fa9;
 	}
+
 	#mytabledata_expense tbody td {
 		vertical-align: middle;
 	}
+
 	.badge {
 		font-size: 11px;
 		padding: 4px 8px;
 		font-weight: 600;
 	}
+
 	.box-header-flex {
 		display: flex;
 		justify-content: space-between;
@@ -39,6 +42,11 @@ $ENABLE_DELETE  = has_permission('Expense.Delete');
 				<button class="btn btn-success btn-sm" type="button" onclick="data_add()">
 					<i class="fa fa-plus">&nbsp;</i> Tambah Expense
 				</button>
+			<?php endif; ?>
+			<?php if ($ENABLE_VIEW) : ?>
+				<a class="btn btn-success btn-sm" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);" href="<?= base_url(isset($export_url) ? $export_url : 'expense/download_excel') ?>">
+					<i class="fa fa-file-excel-o">&nbsp;</i> Export Excel
+				</a>
 			<?php endif; ?>
 		</div>
 	</div>
@@ -65,10 +73,10 @@ $ENABLE_DELETE  = has_permission('Expense.Delete');
 					if (!empty($results)) {
 						$numb = 0;
 						foreach ($results as $record) {
-							$numb++; 
+							$numb++;
 							$tgl_doc = (!empty($record->tgl_doc) && $record->tgl_doc != '0000-00-00') ? date('d M Y', strtotime($record->tgl_doc)) : '-';
 							$app_date = (!empty($record->approved_on) && $record->approved_on != '0000-00-00 00:00:00') ? date('d M Y H:i', strtotime($record->approved_on)) : '-';
-							?>
+					?>
 							<tr>
 								<td class="text-center"><?= $numb; ?></td>
 								<td class="text-center"><b><?= $record->no_doc ?></b></td>
@@ -101,7 +109,7 @@ $ENABLE_DELETE  = has_permission('Expense.Delete');
 										<a class="btn btn-default btn-xs" href="<?= base_url('expense/expense_print/' . $record->id) ?>" target="expense_print" title="Print"><i class="fa fa-print"></i></a>
 										<a class="btn btn-info btn-xs" href="javascript:void(0)" data-jenis="<?= $record->pettycash ?>"
 											onclick="setExpenseUrls(this); data_view('<?= $record->id ?>')" title="Lihat"><i class="fa fa-eye"></i></a>
-									<?php endif;
+										<?php endif;
 									if ($ENABLE_MANAGE) :
 										if ($record->status == 0 || $record->status == 9) { ?>
 											<a class="btn btn-warning btn-xs" href="javascript:void(0)" data-jenis="<?= $record->pettycash ?>"
@@ -188,7 +196,9 @@ $ENABLE_DELETE  = has_permission('Expense.Delete');
 	$(document).ready(function() {
 		$("#mytabledata_expense").DataTable({
 			"responsive": true,
-			"order": [[1, "desc"]]
+			"order": [
+				[1, "desc"]
+			]
 		});
 	});
 </script>
